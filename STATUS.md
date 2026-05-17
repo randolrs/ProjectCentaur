@@ -1,5 +1,83 @@
 # Project Status
 
+## M2 — Conversational onboarding
+
+**State:** Code-complete; production build, typecheck, and the unit +
+integration test suites pass locally. The M2 database migration is applied to
+the hosted Supabase project. Live LLM verification and the three founder
+prompt-quality tests are pending founder action — this sandbox's network policy
+blocks the Anthropic API, and the quality bar is a human judgement.
+
+_Last updated: 2026-05-17 · branch `claude/apply-m1-migration-KNaf6`_
+
+### Shipped
+
+- **Data model** — `handicapper_profile` (the structured conversation output,
+  one row per user, owner-only RLS) and `onboarding_conversations` (transient
+  per-user transcript, RLS-on with no policies). `users.onboarding_status`
+  tracks `structured_complete` -> `conversation_complete`. Migration
+  `0002_m2_handicapper_profile.sql`, applied to the hosted DB.
+- **LLM layer** — `lib/onboarding/llm.ts` wraps Claude Sonnet 4.6
+  (`claude-sonnet-4-6`) via the official `@anthropic-ai/sdk`. One call advances
+  the conversation one turn; the static system prompt + few-shot examples are
+  sent with `cache_control` for prompt caching; 30s timeout, SDK retry on 5xx,
+  plus a parse-failure retry. Per-conversation token spend and USD cost are
+  logged; a conversation over $1 logs a COST ALERT.
+- **Prompts** — `lib/llm/prompts/us/` holds the racing-specific system prompt,
+  the deterministic opener, and few-shot profile examples;
+  `lib/onboarding/prompts.ts` is the region-agnostic accessor.
+- **Conversation flow** — `/onboarding/conversation` runs a 4-6 turn interview
+  (hard cap 8), one question at a time, rendered styled (not chat-bubble). The
+  model returns either the next question or `done` with the synthesized
+  profile. On repeated parse failure, an API error, or the hard cap, the flow
+  falls back to a profile synthesized from the M1 structured answers, so
+  onboarding always terminates with a usable profile.
+- **Review** — `/onboarding/review` shows the captured profile in plain
+  English with "Looks right" (-> dashboard) and "Edit" (a structured-field form
+  validated against the Zod schema).
+- **Gating** — M1 structured save -> `/onboarding/conversation`; the dashboard
+  requires a finished `handicapper_profile`.
+- **Tests** — `tests/unit/onboarding-schema.test.ts` (schema + JSON parsing),
+  `tests/unit/onboarding-llm.test.ts` (Sonnet wrapper, mocked SDK, retry and
+  failure paths), `tests/integration/onboarding-flow.test.ts` (full multi-turn
+  happy path, mocked LLM).
+
+### Decisions
+
+- **Conversation state** — stored server-side in the transient
+  `onboarding_conversations` table (one row per user, deleted on finalize),
+  not client-held. Server-authoritative, survives reload; the 30-minute idle
+  expiry is enforced from the row's `updated_at`.
+- **Adaptive thinking** — the Sonnet calls run with `thinking: adaptive` so the
+  model reasons before each question and before synthesizing the profile,
+  prioritizing prompt quality over cost. `max_tokens` is 16000 and the request
+  timeout is 60s to give thinking room. This pushes per-conversation cost above
+  the spec's original ~$0.20-0.40 estimate (founder-approved ceiling ~$2); the
+  $1 per-conversation COST ALERT log still fires as a spend tripwire.
+- **JSON contract** — the model is prompted (not structured-output-constrained)
+  to return one of two JSON shapes; `parseTurnResponse` tolerantly extracts and
+  Zod-validates them, matching the spec's "if parsing fails twice, fall back".
+- **`onboarding_status` default** — `structured_complete`, per the spec. The
+  real structured-onboarding gate is the presence of a `user_preferences` row;
+  `onboarding_status` meaningfully tracks only the conversation step.
+
+### Deferred — founder action required
+
+- **Set `ANTHROPIC_API_KEY`** in the Vercel project environment (and locally).
+  Without it the conversation server action throws and every conversation
+  falls back to the structured-data profile.
+- **Live verification** on the Vercel preview: signup -> structured onboarding
+  -> conversation -> review -> dashboard, plus the edit form.
+- **Prompt-quality bar (blocks M2 close).** Run the three founder tests from
+  the spec: the vocabulary test, the differentiation test (two synthetic users
+  must produce visibly different profiles), and the "yeah, that's me" test.
+  Tune `lib/llm/prompts/us/onboarding_system.ts` until all three pass.
+- **Competitive calibration (blocks M2 close).** Document, from the founder's
+  Railbird AI / Probatrix usage: what they capture via structured inputs that
+  our conversation must also capture; what our conversation captures that they
+  structurally cannot; and one user-facing artifact (e.g. a profile-summary
+  screenshot) that demonstrates the difference.
+
 ## M1 — Auth + deterministic onboarding
 
 **State:** Code-complete and locally verified (build, typecheck, tests). The

@@ -15,6 +15,13 @@
       "when": 1778997058511,
       "tag": "0001_auth_user_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779033732935,
+      "tag": "0002_m2_handicapper_profile",
+      "breakpoints": true
     }
   ]
 }

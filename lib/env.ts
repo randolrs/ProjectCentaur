@@ -31,3 +31,12 @@ export function getRacingApiConfig(): RacingApiConfig {
 export function hasRacingApiCredentials(): boolean {
   return Boolean(process.env.RACING_API_USERNAME && process.env.RACING_API_PASSWORD);
 }
+
+export function getAnthropicApiKey(): string {
+  return requireEnv('ANTHROPIC_API_KEY');
+}
+
+/** True when an Anthropic API key is present — used to skip live LLM tests. */
+export function hasAnthropicApiKey(): boolean {
+  return Boolean(process.env.ANTHROPIC_API_KEY);
+}
