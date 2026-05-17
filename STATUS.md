@@ -65,15 +65,20 @@ _Last updated: 2026-05-17 · branch `claude/setup-nextjs-supabase-vDrl1`_
   the preview connects to the hosted DB (not local).
 - **Local Supabase CLI.** `npx supabase init && npx supabase start` was not run
   here (Docker unavailable in the sandbox); steps are documented in `README.md`.
-- **Live Racing API verification.** Run `npm test` with `RACING_API_USERNAME` /
-  `RACING_API_PASSWORD` set to exercise the integration test against the real
-  API and confirm the NA endpoint paths + field mappings.
+- **Live Racing API verification.** Attempted in the sandbox with founder-
+  supplied credentials, but the remote environment's network policy blocks
+  outbound requests to `api.theracingapi.com` (proxy returns `403 Host not in
+  allowlist`). To verify: either add `api.theracingapi.com` to the environment's
+  network allowlist, or run `npm test` locally with `RACING_API_USERNAME` /
+  `RACING_API_PASSWORD` set. This exercises the integration test against the
+  real API and confirms the NA endpoint paths + field mappings.
 
 ### v1 track data today (2026-05-17)
 
-Pending — requires a live Racing API run, which needs credentials not present
-in this sandbox. The integration test enumerates today's US cards; once it is
-run with credentials, record here which of the 12 v1 track names
+Pending — the live Racing API run is blocked by the sandbox network policy
+(see _Deferred_ above). The integration test enumerates today's US cards; once
+it is run (locally or after allowlisting the host), record here which of the 12
+v1 track names
 (Saratoga, Belmont Park, Aqueduct, Churchill Downs, Keeneland, Del Mar,
 Santa Anita Park, Gulfstream Park, Oaklawn Park, Fair Grounds, Tampa Bay Downs,
 Kentucky Downs) returned non-empty cards. Coverage is season-dependent — most
