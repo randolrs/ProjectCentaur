@@ -61,8 +61,6 @@ _Last updated: 2026-05-17 · branch `claude/apply-m1-migration-KNaf6`_
 
 ### Deferred — founder action required
 
-- **Set `CRON_SECRET`** in the Vercel project environment (e.g.
-  `openssl rand -hex 32`).
 - **Live ingestion verification.** Allowlist `api.theracingapi.com` on the
   environment's network policy (or run locally with `RACING_API_*` set), then
   hit `GET /api/cron/ingest` with the bearer token and confirm rows land in
@@ -134,9 +132,6 @@ _Last updated: 2026-05-17 · branch `claude/apply-m1-migration-KNaf6`_
 
 ### Deferred — founder action required
 
-- **Set `ANTHROPIC_API_KEY`** in the Vercel project environment (and locally).
-  Without it the conversation server action throws and every conversation
-  falls back to the structured-data profile.
 - **Live verification** on the Vercel preview: signup -> structured onboarding
   -> conversation -> review -> dashboard, plus the edit form.
 - **Prompt-quality bar (blocks M2 close).** Run the three founder tests from
