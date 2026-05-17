@@ -18,8 +18,9 @@ import {
 // ---------------------------------------------------------------------------
 
 const MODEL = 'claude-sonnet-4-6';
-const MAX_TOKENS = 2048;
-const TIMEOUT_MS = 30_000;
+// Generous ceiling so adaptive thinking has room before the JSON output.
+const MAX_TOKENS = 16000;
+const TIMEOUT_MS = 60_000;
 const MAX_ATTEMPTS = 2;
 
 // Sonnet 4.6 list pricing, USD per million tokens.
@@ -143,7 +144,7 @@ export async function callSonnetForNextTurn(
         {
           model: MODEL,
           max_tokens: MAX_TOKENS,
-          thinking: { type: 'disabled' },
+          thinking: { type: 'adaptive' },
           system: [
             {
               type: 'text',

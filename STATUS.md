@@ -48,10 +48,12 @@ _Last updated: 2026-05-17 · branch `claude/apply-m1-migration-KNaf6`_
   `onboarding_conversations` table (one row per user, deleted on finalize),
   not client-held. Server-authoritative, survives reload; the 30-minute idle
   expiry is enforced from the row's `updated_at`.
-- **Thinking disabled** — the Sonnet calls run with `thinking: disabled` to
-  keep per-conversation cost predictable and within the spec's ~$0.20-0.40
-  budget. If the prompt-quality bar needs more, adaptive thinking can be
-  enabled in `lib/onboarding/llm.ts` at a higher token cost.
+- **Adaptive thinking** — the Sonnet calls run with `thinking: adaptive` so the
+  model reasons before each question and before synthesizing the profile,
+  prioritizing prompt quality over cost. `max_tokens` is 16000 and the request
+  timeout is 60s to give thinking room. This pushes per-conversation cost above
+  the spec's original ~$0.20-0.40 estimate (founder-approved ceiling ~$2); the
+  $1 per-conversation COST ALERT log still fires as a spend tripwire.
 - **JSON contract** — the model is prompted (not structured-output-constrained)
   to return one of two JSON shapes; `parseTurnResponse` tolerantly extracts and
   Zod-validates them, matching the spec's "if parsing fails twice, fall back".
