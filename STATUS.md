@@ -2,9 +2,8 @@
 
 ## M0 — Skeleton
 
-**State:** Code-complete and locally verified. Vercel preview deploy and the
-hosted-Supabase connection check are pending (see _Deferred_ below) — they need
-credentials this remote sandbox does not have.
+**State:** Complete. Deployed to a Vercel preview against a hosted Supabase
+project. Awaiting founder review before M1.
 
 _Last updated: 2026-05-17 · branch `claude/setup-nextjs-supabase-vDrl1`_
 
@@ -41,6 +40,12 @@ _Last updated: 2026-05-17 · branch `claude/setup-nextjs-supabase-vDrl1`_
 - `npm run typecheck` — clean (`tsc --noEmit`, strict).
 - `npm test` — 6 unit tests pass; 2 live integration tests skip cleanly
   without credentials.
+- **Vercel preview deploy** — `randolrs/projectcentaur` imported into Vercel;
+  the placeholder page renders on the preview URL (`*-randolrs-projects.vercel.app`).
+- **Hosted Supabase** — project `yzngwuywrjbxoyysgngi` created; the Vercel
+  project's `DATABASE_URL` points at the pooled hosted connection
+  (`...pooler.supabase.com:6543`), and the Supabase API/keys env vars are set.
+  No runtime DB call exists in M0; the first live query lands in M1.
 
 ### Decisions / deviations from the task brief
 
@@ -56,15 +61,11 @@ _Last updated: 2026-05-17 · branch `claude/setup-nextjs-supabase-vDrl1`_
 - No `SPEC.md` / `CLAUDE.md` files existed in the repo; the product spec was
   provided in the task conversation and used as the source of truth.
 
-### Deferred (need founder action — no Vercel/Supabase credentials in sandbox)
+### Deferred (not blocking M0)
 
-- **Vercel preview deploy.** Run `vercel` (or connect the repo in the Vercel
-  dashboard) to deploy the placeholder page to a preview environment.
-- **Hosted Supabase connection.** Create a hosted Supabase project, set the
-  Vercel project's `DATABASE_URL` to its pooled connection string, and confirm
-  the preview connects to the hosted DB (not local).
 - **Local Supabase CLI.** `npx supabase init && npx supabase start` was not run
   here (Docker unavailable in the sandbox); steps are documented in `README.md`.
+  Not required for M0 — the Vercel preview uses the hosted project.
 - **Live Racing API verification.** Attempted in the sandbox with founder-
   supplied credentials, but the remote environment's network policy blocks
   outbound requests to `api.theracingapi.com` (proxy returns `403 Host not in
@@ -86,6 +87,5 @@ tracks do not run every day.
 
 ### Next
 
-M1 — Auth + deterministic onboarding. **Do not start until M0 is deployed to a
-Vercel preview, the hosted Supabase connection is confirmed, and the founder
-has reviewed.**
+M1 — Auth + deterministic onboarding. M0 is deployed and verified; start M1
+once the founder has reviewed.
