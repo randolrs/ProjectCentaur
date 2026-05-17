@@ -48,6 +48,27 @@ npx supabase status          # prints local URLs + keys
 
 Stop it with `npx supabase stop`.
 
+### Database migrations
+
+Schema lives in `db/schema.ts`; migrations are checked into `db/migrations/`.
+
+```bash
+npm run db:generate   # diff schema.ts -> new SQL migration
+npm run db:migrate    # apply pending migrations to DATABASE_URL
+```
+
+Migrations must be applied to the hosted Supabase database before auth and
+onboarding work. `0001_auth_user_trigger.sql` installs a trigger on
+`auth.users`; if you apply migrations by pasting SQL into the Supabase SQL
+Editor instead, run the files in numeric order.
+
+### Authentication
+
+Auth is Supabase email + password via `@supabase/ssr`. In the Supabase
+dashboard set the Site URL and redirect URLs to your deployment domain. Email
+confirmation is optional: with it on, the `/auth/confirm` route handles the
+emailed link; with it off, signup logs the user straight in.
+
 ## Environment variables
 
 See [`.env.example`](./.env.example). Copy it to `.env.local`.
@@ -85,13 +106,23 @@ set, so `npm test` is safe to run in CI without credentials.
 ## Project structure
 
 ```
-app/                  Next.js App Router (placeholder landing page in M0)
+app/
+  page.tsx            Landing + lightweight email capture
+  login/ signup/      Email + password auth pages
+  onboarding/         Deterministic onboarding form
+  dashboard/          Saved profile (post-onboarding)
+  auth/confirm/       Email-confirmation route handler
+middleware.ts         Session refresh + route gating
 db/
-  schema.ts           Drizzle schema — empty until M1
-  migrations/         Generated Drizzle migrations
+  schema.ts           Drizzle schema: users, user_preferences, email_signups
+  migrations/         Checked-in SQL migrations
   index.ts            Lazy Drizzle client over Supabase Postgres
+  queries.ts          Typed read helpers
 lib/
   env.ts              Typed environment-variable access
+  supabase/           Browser / server / middleware Supabase clients
+  actions/            Server actions: auth, onboarding, email capture
+  onboarding/         Onboarding options + Zod schema
   racing/
     types.ts          Raw NA API schemas (Zod) + normalized domain types
     client.ts         RacingApiClient — fetchTodayUSRacecards()

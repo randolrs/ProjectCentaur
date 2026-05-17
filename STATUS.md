@@ -1,5 +1,74 @@
 # Project Status
 
+## M1 — Auth + deterministic onboarding
+
+**State:** Code-complete and locally verified (build, typecheck, tests). The
+database migration and live auth verification are pending founder action —
+this sandbox's network policy blocks Supabase (`Host not in allowlist`), so
+migrations can't be applied and auth can't be exercised from here.
+
+_Last updated: 2026-05-17 · branch `claude/setup-nextjs-supabase-vDrl1`_
+
+### Shipped
+
+- **Supabase Auth (email + password)** wired with `@supabase/ssr`: browser
+  client (`lib/supabase/client.ts`), server client (`lib/supabase/server.ts`),
+  and `middleware.ts` that refreshes the session and gates routes
+  (unauthenticated users can't reach `/onboarding` or `/dashboard`; signed-in
+  users are bounced off `/login` and `/signup`).
+- **Pages:** `/login`, `/signup`, `/onboarding`, `/dashboard`, plus an
+  `/auth/confirm` route handler for email-confirmation links. The landing `/`
+  now carries the lightweight email-capture form.
+- **Schema (`db/schema.ts`) + migrations:**
+  - `users` — extends `auth.users` (timezone, digest_delivery_hour default 7,
+    regions default `{us}`).
+  - `user_preferences` — the deterministic onboarding answers, one row per user.
+  - `email_signups` — landing-page email capture (no account).
+  - Migration `0000_init_m1.sql` (tables + RLS) and `0001_auth_user_trigger.sql`
+    (the `handle_new_user` trigger that creates the `public.users` row on
+    signup) are generated and checked in.
+- **RLS:** enabled on all three tables. `users` / `user_preferences` have
+  owner-only `select`/`insert`/`update` policies keyed on `auth.uid()`;
+  `email_signups` has RLS on with no policies (REST API fully denied).
+- **Deterministic onboarding form** — tracks, race classes, distance ranges,
+  surfaces, field size band, bet types, bankroll tier, days per week, timezone.
+  Submits to a server action that validates with Zod (`lib/onboarding/options.ts`)
+  and persists `user_preferences` (+ the user's timezone).
+- Tests: `onboardingSchema` validation unit tests; M0 racing tests still pass.
+
+### Verified (in sandbox)
+
+- `npm run typecheck` — clean.
+- `npm run build` — succeeds; 7 routes + middleware compile.
+- `npm test` — 12 unit tests pass; 2 live integration tests skip cleanly.
+
+### Decisions
+
+- **Email capture included** (founder choice): the landing `/` has an
+  email-only capture form writing to `email_signups`. Captured addresses sit
+  unused until the digest pipeline (M4).
+- **Signup trigger** (founder choice): a Postgres trigger on `auth.users`
+  creates the `public.users` row. The onboarding action also upserts that row
+  defensively.
+- **RLS vs. Drizzle access:** server actions read/write via Drizzle over
+  `DATABASE_URL`, which connects as the table-owner role and bypasses RLS —
+  every query is explicitly scoped by the authenticated user's id. RLS is
+  defense-in-depth for the auto-exposed Supabase REST API (anon / authenticated
+  keys), which is what the policies protect.
+
+### Deferred (need founder action — Supabase unreachable from sandbox)
+
+- **Apply migrations.** Run `npm run db:migrate` against the hosted DB (or
+  paste `db/migrations/0000_init_m1.sql` then `0001_auth_user_trigger.sql` into
+  the Supabase SQL Editor in order). Nothing works until the tables exist.
+- **Supabase Auth config.** In the Supabase dashboard set the Site URL and
+  redirect URLs to the Vercel preview domain. Decide whether to keep email
+  confirmation on: if on, the `/auth/confirm` flow handles the link (the email
+  template must use `token_hash`); if off, signup logs the user straight in.
+- **Manual verification on the preview:** signup → onboarding → save → dashboard,
+  login, logout, email capture, and that a second account cannot read the first
+  account's rows.
+
 ## M0 — Skeleton
 
 **State:** Complete. Deployed to a Vercel preview against a hosted Supabase
