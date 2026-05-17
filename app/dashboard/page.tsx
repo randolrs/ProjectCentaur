@@ -1,5 +1,9 @@
 import { redirect } from 'next/navigation';
-import { getUserPreferences, getUserProfile } from '@/db/queries';
+import {
+  getHandicapperProfile,
+  getUserPreferences,
+  getUserProfile,
+} from '@/db/queries';
 import { signOut } from '@/lib/actions/auth';
 import { createClient } from '@/lib/supabase/server';
 
@@ -15,6 +19,12 @@ export default async function DashboardPage() {
   const prefs = await getUserPreferences(user.id);
   if (!prefs) {
     redirect('/onboarding');
+  }
+
+  // The conversational onboarding must be completed before the dashboard.
+  const handicapper = await getHandicapperProfile(user.id);
+  if (!handicapper) {
+    redirect('/onboarding/conversation');
   }
   const profile = await getUserProfile(user.id);
 
@@ -54,6 +64,13 @@ export default async function DashboardPage() {
           Your handicapping profile is saved. Your personalized morning digest
           starts once the digest pipeline ships (M4).
         </p>
+
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold">How you play</h2>
+          <p className="rounded-md border border-neutral-800 bg-neutral-900 p-4 text-sm leading-relaxed text-neutral-100">
+            {handicapper.styleSummary}
+          </p>
+        </section>
 
         <dl className="divide-y divide-neutral-800 rounded-md border border-neutral-800">
           {rows.map(([label, value]) => (

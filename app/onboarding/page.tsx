@@ -102,10 +102,11 @@ export default async function OnboardingPage({
     redirect('/login');
   }
 
-  // Onboarding is one-time; send already-onboarded users to their profile.
+  // Structured onboarding is one-time; once it's done the user moves on to
+  // the M2 conversational onboarding.
   const existing = await getUserPreferences(user.id);
   if (existing) {
-    redirect('/dashboard');
+    redirect('/onboarding/conversation');
   }
 
   const sp = await searchParams;

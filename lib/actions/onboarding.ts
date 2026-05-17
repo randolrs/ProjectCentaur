@@ -61,5 +61,6 @@ export async function saveOnboarding(formData: FormData): Promise<void> {
     .values({ userId: user.id, ...values })
     .onConflictDoUpdate({ target: userPreferences.userId, set: values });
 
-  redirect('/dashboard');
+  // Structured answers saved — continue to the M2 conversational onboarding.
+  redirect('/onboarding/conversation');
 }
