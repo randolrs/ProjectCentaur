@@ -1,5 +1,82 @@
 # Project Status
 
+## M4 — Digest pipeline
+
+**State:** Code-complete; production build, typecheck, and the unit test
+suites pass locally. The `digests` migration (`0004_fantastic_thunderbolt.sql`)
+is applied to the hosted Supabase project. Live end-to-end delivery is pending
+founder action — the sandbox blocks the Anthropic API and outbound email, and
+Resend is not yet configured.
+
+_Last updated: 2026-05-17 · branch `claude/apply-m1-migration-KNaf6`_
+
+### Shipped
+
+- **`digests` table** (`db/schema.ts`, migration `0004`). One row per
+  (user, racing day): the rendered digest (`content` jsonb), delivery status,
+  Resend message id, and LLM cost. A unique `(user_id, race_date)` constraint
+  makes the pipeline idempotent; owner-only RLS for reads.
+- **Race selection** (`lib/digest/select.ts`) — `selectRacesForUser`, a pure
+  deterministic filter narrowing a user's followed-track races to those
+  matching their structured preferences (surface, class, distance range,
+  field-size band), each carrying plain-language match reasons.
+- **Digest LLM** (`lib/digest/llm.ts`) — `generateDigest` wraps Claude
+  Sonnet 4.6: one call writes the whole digest (intro + per-race headline and
+  reasoning). Prompt caching on the system prompt, adaptive thinking, retry on
+  transient/parse failure, per-run token + USD cost tracking.
+- **Assembly + fallback** (`lib/digest/render.ts`) — `buildRenderedDigest`
+  merges model prose with the structured race fields; on model failure it
+  builds a deterministic digest from the match reasons, so a user always gets
+  a usable digest.
+- **Email** (`lib/digest/email.ts`, `lib/email/resend.ts`) — inline-styled
+  HTML + plain-text rendering; delivery via a dependency-free `fetch` wrapper
+  over the Resend REST API.
+- **Pipeline** (`lib/digest/pipeline.ts`) — `runHourlyDigest` walks every
+  onboarded user, delivers to those for whom it is currently their delivery
+  hour (`lib/digest/schedule.ts`, per-user timezone), skips any user who
+  already has a digest for their local racing day, and isolates each user in
+  a try/catch.
+- **Cron** — `GET /api/cron/digest` (hourly) and the existing
+  `/api/cron/ingest` (daily) are scheduled in `vercel.json`; both share the
+  `CRON_SECRET` bearer guard (`lib/cron.ts`).
+- **Tests** — `tests/digest-select.test.ts`, `tests/digest-schedule.test.ts`,
+  `tests/digest-render.test.ts`, `tests/unit/digest-llm.test.ts`.
+
+### Decisions
+
+- **Deterministic filter, LLM reasoning.** The structured filter decides
+  *which* races qualify; the LLM only explains *why* they fit this
+  handicapper. The model never sees a race that failed the filter, so it
+  cannot pad the digest.
+- **One LLM call per user per day.** All selected races (capped at 10) go in
+  one request, so the model can compare races and cost is one call. Sonnet
+  4.6, consistent with M2.
+- **Hourly cron, per-user delivery hour.** The digest cron runs hourly; each
+  run delivers to users whose local time equals their `digest_delivery_hour`.
+  This honours the per-user timezone + hour already in the schema. (Hourly
+  Vercel Cron needs a Pro plan; Hobby runs cron once daily — see Deferred.)
+- **Idempotent on (user, race_date).** A digest row — sent, skipped, or
+  failed — blocks reprocessing for that user's racing day. A failed send is
+  not auto-retried within the day, by design (no risk of duplicate emails).
+- **No SDK dependency for email.** Resend is called via `fetch`, matching the
+  Racing API client; no new package.
+
+### Deferred — founder action required
+
+- **Configure Resend.** Verify a sender domain in Resend, then set
+  `RESEND_API_KEY` and `DIGEST_FROM_EMAIL` in the Vercel project env (and
+  locally).
+- **Vercel plan for hourly cron.** `vercel.json` schedules the digest cron
+  hourly. Vercel Hobby runs cron at most once per day; hourly per-user
+  delivery needs a Pro plan. On Hobby, either upgrade or change the digest
+  schedule to a single fixed hour.
+- **Live end-to-end run.** Once ingestion has populated `races` and Resend is
+  configured, trigger `GET /api/cron/digest` with the bearer token and confirm
+  an email is delivered and a `digests` row is written.
+- **Prompt-quality review.** Read generated digests against real race data and
+  tune `lib/llm/prompts/us/digest_system.ts` — the digest is the product's
+  core value and the prompt has not been exercised live.
+
 ## M3 — Race ingestion & query layer
 
 **State:** Code-complete; production build, typecheck, and the unit +
@@ -67,7 +144,6 @@ _Last updated: 2026-05-17 · branch `claude/apply-m1-migration-KNaf6`_
   `races`. The fixtures match the published OpenAPI schema, but real-data
   field *values* (e.g. exact `surface_description` / `race_class` strings)
   should still be spot-checked on the first live run.
-- **Wire the Vercel cron schedule** against `/api/cron/ingest` — M4 work.
 
 ## M2 — Conversational onboarding
 

@@ -36,7 +36,7 @@ export function getAnthropicApiKey(): string {
   return requireEnv('ANTHROPIC_API_KEY');
 }
 
-/** Shared secret guarding the race-ingestion cron endpoint. */
+/** Shared secret guarding the cron endpoints (ingest + digest). */
 export function getCronSecret(): string {
   return requireEnv('CRON_SECRET');
 }
@@ -44,4 +44,19 @@ export function getCronSecret(): string {
 /** True when an Anthropic API key is present — used to skip live LLM tests. */
 export function hasAnthropicApiKey(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
+}
+
+/** Resend API key for digest email delivery. */
+export function getResendApiKey(): string {
+  return requireEnv('RESEND_API_KEY');
+}
+
+/** The `From` address for digest emails (a verified Resend sender). */
+export function getDigestFromEmail(): string {
+  return requireEnv('DIGEST_FROM_EMAIL');
+}
+
+/** True when Resend delivery is configured — used to skip live email tests. */
+export function hasResendCredentials(): boolean {
+  return Boolean(process.env.RESEND_API_KEY && process.env.DIGEST_FROM_EMAIL);
 }

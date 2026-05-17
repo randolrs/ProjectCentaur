@@ -1,5 +1,10 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { getDb } from './index';
+import type {
+  HandicapperProfileRow,
+  UserPreferencesRow,
+  UserRow,
+} from './schema';
 import { handicapperProfile, races, userPreferences, users } from './schema';
 
 /** The user's deterministic onboarding preferences, or null if not onboarded. */
@@ -67,4 +72,28 @@ export async function getRacesForTracks(
       ),
     )
     .orderBy(asc(races.postTimestamp), asc(races.track), asc(races.raceNumber));
+}
+
+export interface DigestEligibleUser {
+  user: UserRow;
+  prefs: UserPreferencesRow;
+  profile: HandicapperProfileRow;
+}
+
+/**
+ * Every user who has finished onboarding — they have both structured
+ * preferences and a conversational handicapper profile. These are the users
+ * the digest pipeline considers each morning.
+ */
+export async function getDigestEligibleUsers(): Promise<DigestEligibleUser[]> {
+  const db = getDb();
+  return db
+    .select({
+      user: users,
+      prefs: userPreferences,
+      profile: handicapperProfile,
+    })
+    .from(users)
+    .innerJoin(userPreferences, eq(userPreferences.userId, users.id))
+    .innerJoin(handicapperProfile, eq(handicapperProfile.userId, users.id));
 }

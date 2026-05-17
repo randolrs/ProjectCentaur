@@ -10,9 +10,11 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { authenticatedRole, authUsers } from 'drizzle-orm/supabase';
+import type { RenderedDigest } from '@/lib/digest/schema';
 import type { Runner } from '@/lib/racing/types';
 
 // Shape of one stored conversation turn (see lib/onboarding/schema.ts).
@@ -265,6 +267,51 @@ export const races = pgTable(
   ],
 );
 
+// ---------------------------------------------------------------------------
+// digests — one row per (user, racing day) recording the personalized
+// morning digest: the rendered content, delivery status, and LLM cost.
+//
+// The unique (user_id, race_date) constraint makes the digest pipeline
+// idempotent — a day that already has a row is never processed twice.
+// Per-user data: RLS allows the owner to read their own digests; the
+// pipeline writes only via the trusted server path (Drizzle owner role).
+// ---------------------------------------------------------------------------
+
+export const digests = pgTable(
+  'digests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    raceDate: date('race_date', { mode: 'string' }).notNull(),
+    // 'sent' | 'skipped_no_races' | 'failed'.
+    status: text('status').notNull(),
+    raceCount: integer('race_count').notNull().default(0),
+    subject: text('subject'),
+    content: jsonb('content').$type<RenderedDigest>(),
+    costUsd: doublePrecision('cost_usd').notNull().default(0),
+    // Resend message id once the email is accepted for delivery.
+    resendId: text('resend_id'),
+    error: text('error'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    unique('digests_user_date_key').on(table.userId, table.raceDate),
+    pgPolicy('digests_select_own', {
+      for: 'select',
+      to: authenticatedRole,
+      using: sql`(select auth.uid()) = ${table.userId}`,
+    }),
+  ],
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type UserPreferencesRow = typeof userPreferences.$inferSelect;
 export type EmailSignupRow = typeof emailSignups.$inferSelect;
@@ -273,3 +320,5 @@ export type OnboardingConversationRow =
   typeof onboardingConversations.$inferSelect;
 export type RaceRow = typeof races.$inferSelect;
 export type NewRaceRow = typeof races.$inferInsert;
+export type DigestRow = typeof digests.$inferSelect;
+export type NewDigestRow = typeof digests.$inferInsert;
