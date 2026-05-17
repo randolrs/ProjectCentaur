@@ -51,12 +51,16 @@ export function getResendApiKey(): string {
   return requireEnv('RESEND_API_KEY');
 }
 
-/** The `From` address for digest emails (a verified Resend sender). */
+/**
+ * The `From` address for digest emails. Defaults to Resend's shared dev
+ * sender, which needs no domain verification but only delivers to the Resend
+ * account owner. Set `DIGEST_FROM_EMAIL` to a verified sender for real delivery.
+ */
 export function getDigestFromEmail(): string {
-  return requireEnv('DIGEST_FROM_EMAIL');
+  return process.env.DIGEST_FROM_EMAIL || 'onboarding@resend.dev';
 }
 
 /** True when Resend delivery is configured — used to skip live email tests. */
 export function hasResendCredentials(): boolean {
-  return Boolean(process.env.RESEND_API_KEY && process.env.DIGEST_FROM_EMAIL);
+  return Boolean(process.env.RESEND_API_KEY);
 }

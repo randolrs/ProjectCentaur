@@ -63,9 +63,11 @@ _Last updated: 2026-05-17 · branch `claude/apply-m1-migration-KNaf6`_
 
 ### Deferred — founder action required
 
-- **Configure Resend.** Verify a sender domain in Resend, then set
-  `RESEND_API_KEY` and `DIGEST_FROM_EMAIL` in the Vercel project env (and
-  locally).
+- **Configure Resend.** Set `RESEND_API_KEY` in the Vercel project env (and
+  locally). `DIGEST_FROM_EMAIL` defaults to Resend's shared dev sender
+  (`onboarding@resend.dev`), which delivers only to the Resend account owner —
+  enough for testing. For real delivery, verify a sender domain in Resend and
+  set `DIGEST_FROM_EMAIL` to an address on it.
 - **Vercel plan for hourly cron.** `vercel.json` schedules the digest cron
   hourly. Vercel Hobby runs cron at most once per day; hourly per-user
   delivery needs a Pro plan. On Hobby, either upgrade or change the digest
