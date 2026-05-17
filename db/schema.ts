@@ -1,6 +1,9 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
+  date,
   doublePrecision,
+  index,
   integer,
   jsonb,
   pgPolicy,
@@ -10,6 +13,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { authenticatedRole, authUsers } from 'drizzle-orm/supabase';
+import type { Runner } from '@/lib/racing/types';
 
 // Shape of one stored conversation turn (see lib/onboarding/schema.ts).
 type StoredTurn = { role: 'assistant' | 'user'; content: string; timestamp: string };
@@ -205,9 +209,67 @@ export const onboardingConversations = pgTable('onboarding_conversations', {
     .$onUpdate(() => new Date()),
 }).enableRLS();
 
+// ---------------------------------------------------------------------------
+// races — racecards ingested from the Racing API, one row per race.
+//
+// Carries both the raw provider payload (`raw_data`) and structured,
+// queryable columns (canonical surface / class, distance in furlongs) so the
+// M4 digest pipeline can filter races against user preferences in SQL. Shared
+// reference data: RLS allows any authenticated user to read; ingestion writes
+// only via the trusted server path (Drizzle owner role).
+// ---------------------------------------------------------------------------
+
+export const races = pgTable(
+  'races',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Idempotency key `region|date|track|raceNumber`: re-ingesting a racing
+    // day updates the existing row instead of inserting a duplicate.
+    key: text('key').notNull().unique(),
+    source: text('source').notNull().default('theracingapi'),
+    region: text('region').notNull(),
+    raceDate: date('race_date', { mode: 'string' }).notNull(),
+    track: text('track').notNull(),
+    raceNumber: integer('race_number'),
+    postTime: text('post_time'),
+    postTimestamp: bigint('post_timestamp', { mode: 'number' }),
+    surface: text('surface'),
+    surfaceCanonical: text('surface_canonical').notNull(),
+    distance: text('distance'),
+    distanceFurlongs: doublePrecision('distance_furlongs'),
+    raceClass: text('race_class'),
+    raceClassCanonical: text('race_class_canonical').notNull(),
+    conditions: text('conditions'),
+    purse: integer('purse'),
+    fieldSize: integer('field_size').notNull().default(0),
+    runners: jsonb('runners').notNull().$type<Runner[]>(),
+    rawData: jsonb('raw_data').notNull(),
+    ingestedAt: timestamp('ingested_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('races_date_track_idx').on(table.raceDate, table.track),
+    pgPolicy('races_select_all', {
+      for: 'select',
+      to: authenticatedRole,
+      using: sql`true`,
+    }),
+  ],
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type UserPreferencesRow = typeof userPreferences.$inferSelect;
 export type EmailSignupRow = typeof emailSignups.$inferSelect;
 export type HandicapperProfileRow = typeof handicapperProfile.$inferSelect;
 export type OnboardingConversationRow =
   typeof onboardingConversations.$inferSelect;
+export type RaceRow = typeof races.$inferSelect;
+export type NewRaceRow = typeof races.$inferInsert;

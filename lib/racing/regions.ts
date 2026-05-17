@@ -1,7 +1,9 @@
 import type { RacingApiClient } from './client';
 import type {
   NaMeet,
+  NaPerson,
   NaRace,
+  NaRunner,
   Racecard,
   RawUsRacecardData,
   Region,
@@ -56,32 +58,58 @@ export function usToday(now: Date = new Date()): string {
   }).format(now);
 }
 
-function toNumber(value: string | number | undefined): number | null {
-  if (value === undefined) return null;
+function toNumber(value: string | number | null | undefined): number | null {
+  if (value === undefined || value === null) return null;
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : null;
 }
 
-function toStringOrNull(value: string | number | undefined): string | null {
-  if (value === undefined) return null;
+function toStringOrNull(value: string | number | null | undefined): string | null {
+  if (value === undefined || value === null) return null;
   const s = String(value).trim();
   return s.length > 0 ? s : null;
 }
 
+/** NA add-on covers the US + Canada; keep only US meets for v1. */
 function isUsMeet(meet: NaMeet): boolean {
-  const marker = (meet.country ?? meet.region ?? '').toLowerCase();
-  if (!marker) return true; // NA add-on is US + Canada; keep when unlabelled.
-  return /usa|united states|^us\b|u\.s\./.test(marker);
+  const marker = (meet.country ?? '').toLowerCase();
+  if (!marker) return true; // Keep unlabelled meets rather than silently drop.
+  return /usa|united states|^us$/.test(marker);
 }
 
-function normalizeRunner(runner: NonNullable<NaRace['runners']>[number]): Runner {
+/** Build a display name from a jockey / trainer person object. */
+function personName(person: NaPerson | null | undefined): string | null {
+  if (!person) return null;
+  const full = [person.first_name, person.middle_name, person.last_name]
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part))
+    .join(' ');
+  return toStringOrNull(full) ?? toStringOrNull(person.alias);
+}
+
+function normalizeRunner(runner: NaRunner): Runner {
+  // `scratch_indicator` is "N" for a live entry; anything else means scratched.
+  const indicator = (runner.scratch_indicator ?? '').trim().toUpperCase();
   return {
-    programNumber: toStringOrNull(runner.program_number ?? runner.post_position),
-    horseName: runner.horse_name ?? runner.horse ?? null,
-    jockey: runner.jockey ?? null,
-    trainer: runner.trainer ?? null,
+    programNumber: toStringOrNull(runner.program_number ?? runner.post_pos),
+    horseName: toStringOrNull(runner.horse_name),
+    jockey: personName(runner.jockey),
+    trainer: personName(runner.trainer),
     morningLineOdds: toStringOrNull(runner.morning_line_odds),
+    scratched: indicator !== '' && indicator !== 'N',
   };
+}
+
+/** Synthesize conditions text from the race's restriction descriptions. */
+function buildConditions(race: NaRace): string | null {
+  const restrictions = [
+    race.age_restriction_description,
+    race.sex_restriction_description,
+    race.race_restriction_description,
+  ]
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part));
+  return toStringOrNull(restrictions.join(' · ')) ?? toStringOrNull(race.race_name);
 }
 
 function normalizeRace(region: Region, track: string, race: NaRace): Racecard {
@@ -89,13 +117,18 @@ function normalizeRace(region: Region, track: string, race: NaRace): Racecard {
   return {
     region,
     track,
-    raceNumber: toNumber(race.race_number),
-    postTime: race.post_time ?? race.off_time ?? null,
-    conditions: race.conditions ?? null,
-    surface: race.surface ?? null,
-    distance: toStringOrNull(race.distance),
-    raceClass: race.race_class ?? race.race_type ?? null,
-    fieldSize: runners.length,
+    raceNumber: toNumber(race.race_key?.race_number),
+    postTime: toStringOrNull(race.post_time),
+    postTimestamp: toNumber(race.post_time_long),
+    conditions: buildConditions(race),
+    surface: toStringOrNull(race.surface_description),
+    distance: toStringOrNull(race.distance_description),
+    raceClass:
+      toStringOrNull(race.race_class) ??
+      toStringOrNull(race.race_type_description) ??
+      toStringOrNull(race.race_type),
+    purse: toNumber(race.purse),
+    fieldSize: runners.filter((runner) => !runner.scratched).length,
     runners,
     raw: race,
   };
@@ -143,14 +176,21 @@ class UsRegionStrategy implements RegionStrategy<RawUsRacecardData> {
 
   async dataFetch(client: RacingApiClient): Promise<RawUsRacecardData> {
     const date = usToday();
-    const meetsResponse = await client.listNorthAmericaMeets(date);
-    const usMeets = meetsResponse.meets.filter(isUsMeet);
 
+    // The meets endpoint paginates (max 50 per page); walk every page.
+    const pageSize = 50;
+    const allMeets: NaMeet[] = [];
+    for (let skip = 0; ; skip += pageSize) {
+      const response = await client.listNorthAmericaMeets(date, pageSize, skip);
+      const page = response.meets ?? [];
+      allMeets.push(...page);
+      if (page.length < pageSize) break;
+    }
+
+    const usMeets = allMeets.filter(isUsMeet);
     const meets: RawUsRacecardData['meets'] = [];
     for (const meet of usMeets) {
-      const meetId = meet.meet_id ?? meet.id;
-      if (!meetId) continue;
-      const entries = await client.getNorthAmericaEntries(meetId);
+      const entries = await client.getNorthAmericaEntries(meet.meet_id);
       meets.push({ meet, entries });
     }
 
@@ -161,12 +201,8 @@ class UsRegionStrategy implements RegionStrategy<RawUsRacecardData> {
     const cards: Racecard[] = [];
     for (const { meet, entries } of raw.meets) {
       const track =
-        entries.track_name ??
-        entries.track ??
-        entries.course ??
-        meet.track_name ??
-        meet.track ??
-        meet.course ??
+        toStringOrNull(entries.track_name) ??
+        toStringOrNull(meet.track_name) ??
         'Unknown';
       for (const race of entries.races) {
         cards.push(normalizeRace('us', track, race));

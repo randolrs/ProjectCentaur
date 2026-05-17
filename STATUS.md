@@ -1,5 +1,80 @@
 # Project Status
 
+## M3 — Race ingestion & query layer
+
+**State:** Code-complete; production build, typecheck, and the unit +
+integration test suites pass locally. The `races` migration
+(`0003_bouncy_silver_centurion.sql`) is generated and checked in but **not yet
+applied** — this sandbox's network policy blocks Supabase. Live ingestion
+against the Racing API is also pending: the sandbox blocks
+`api.theracingapi.com` (the M0 deferral).
+
+_Last updated: 2026-05-17 · branch `claude/apply-m1-migration-KNaf6`_
+
+### Shipped
+
+- **Corrected NA wire schemas.** M0 hand-guessed the theracingapi.com North
+  America shapes because the docs were gated. The real OpenAPI 3.1 spec is now
+  in hand, and `lib/racing/types.ts` + the normalizer in `lib/racing/regions.ts`
+  are rewritten to match it: race number is nested in `race_key.race_number`;
+  surface/distance are `surface_description` / `distance_description`;
+  `jockey`/`trainer` are person objects (flattened to display names); the meets
+  endpoint paginates (`limit` ≤ 50, `skip`). Runner-level scratches are tracked
+  and excluded from `fieldSize`.
+- **`races` table** (`db/schema.ts`, migration `0003`). One row per race,
+  carrying the raw provider payload (`raw_data` jsonb) alongside structured,
+  queryable columns — canonical surface / class, `distance_furlongs`,
+  `post_timestamp`, `field_size`, `purse` — so the M4 digest can filter in SQL.
+  Idempotency key `region|date|track|raceNumber`. RLS on; authenticated users
+  may read; ingestion writes via the Drizzle owner role.
+- **Canonicalization** (`lib/racing/canonical.ts`) — pure `canonicalSurface`,
+  `canonicalRaceClass`, and `parseDistanceFurlongs` helpers that collapse the
+  provider's free-form strings onto the fixed onboarding vocabulary
+  (`lib/onboarding/options.ts`).
+- **Ingestion** (`lib/racing/ingest.ts`) — `racecardToRow` /
+  `racecardsToRows` (de-duplicated by natural key) and `ingestRacecards`, an
+  idempotent `INSERT … ON CONFLICT DO UPDATE` upsert. `ingestTodaysUsRaces`
+  fetches, normalizes, and persists today's US cards.
+- **Trigger route** — `GET /api/cron/ingest`, guarded by a `CRON_SECRET`
+  bearer token (the header Vercel Cron attaches automatically). M4 wires the
+  actual schedule.
+- **Query layer** (`db/queries.ts`) — `getRacesForDate` and
+  `getRacesForTracks` (the digest's per-user followed-track scope).
+- **Tests** — `tests/fixtures/racing/*.json` (real-shape captured-style
+  meets + entries fixtures); `tests/racing.test.ts` rewritten for the real
+  wire format; `tests/racing-ingest.test.ts` covers canonicalizers, the
+  racecard→row mapping, key stability, and natural-key de-duplication.
+
+### Decisions
+
+- **Data source unchanged.** theracingapi.com remains the upstream; the
+  founder's `beethoven` project was used only as a reference for how its
+  racing data is modelled and consumed.
+- **Single `races` table, runners as jsonb.** No separate `race_entries` /
+  `tracks` tables — the digest scores whole racecards, and track is already a
+  text field on user preferences. (`beethoven` splits these because it serves
+  per-horse pages, which this product does not.)
+- **Canonical fields are stored, not computed.** The digest filters races
+  against user preferences; persisting `surface_canonical`,
+  `race_class_canonical`, and `distance_furlongs` keeps that filtering in SQL.
+- **Ingest route is `GET`.** Vercel Cron triggers via GET and attaches the
+  `CRON_SECRET` bearer automatically; the upsert is idempotent regardless.
+
+### Deferred — founder action required
+
+- **Apply migration `0003`** to the hosted Supabase DB (`npm run db:migrate`,
+  or paste the SQL into the SQL Editor). Can also be applied via the Supabase
+  MCP on request.
+- **Set `CRON_SECRET`** in the Vercel project environment (e.g.
+  `openssl rand -hex 32`).
+- **Live ingestion verification.** Allowlist `api.theracingapi.com` on the
+  environment's network policy (or run locally with `RACING_API_*` set), then
+  hit `GET /api/cron/ingest` with the bearer token and confirm rows land in
+  `races`. The fixtures match the published OpenAPI schema, but real-data
+  field *values* (e.g. exact `surface_description` / `race_class` strings)
+  should still be spot-checked on the first live run.
+- **Wire the Vercel cron schedule** against `/api/cron/ingest` — M4 work.
+
 ## M2 — Conversational onboarding
 
 **State:** Code-complete; production build, typecheck, and the unit +

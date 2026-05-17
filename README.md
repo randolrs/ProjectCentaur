@@ -83,6 +83,7 @@ See [`.env.example`](./.env.example). Copy it to `.env.local`.
 | `RACING_API_USERNAME` | theracingapi.com HTTP Basic username | M0+ |
 | `RACING_API_PASSWORD` | theracingapi.com HTTP Basic password | M0+ |
 | `ANTHROPIC_API_KEY` | Claude API (onboarding + digest reasoning) | M2 |
+| `CRON_SECRET` | Bearer token guarding `GET /api/cron/ingest` | M3 |
 | `RESEND_API_KEY` | Email delivery | M4 |
 | `STRIPE_SECRET_KEY` | Billing — see TODO(M5) in `.env.example` | M5 |
 
@@ -112,9 +113,11 @@ app/
   onboarding/         Deterministic onboarding form
   dashboard/          Saved profile (post-onboarding)
   auth/confirm/       Email-confirmation route handler
+  api/cron/ingest/    Race-ingestion trigger (CRON_SECRET-guarded)
 middleware.ts         Session refresh + route gating
 db/
-  schema.ts           Drizzle schema: users, user_preferences, email_signups
+  schema.ts           Drizzle schema: users, user_preferences, email_signups,
+                      handicapper_profile, onboarding_conversations, races
   migrations/         Checked-in SQL migrations
   index.ts            Lazy Drizzle client over Supabase Postgres
   queries.ts          Typed read helpers
@@ -127,7 +130,10 @@ lib/
     types.ts          Raw NA API schemas (Zod) + normalized domain types
     client.ts         RacingApiClient — fetchTodayUSRacecards()
     regions.ts        RegionStrategy: UsRegionStrategy + UkRegionStrategy stub
+    canonical.ts      Surface / class / distance canonicalization
+    ingest.ts         Racecard → races-row mapping + idempotent upsert
 tests/                Unit + (skippable) live integration tests
+  fixtures/racing/    Captured-shape Racing API meets / entries fixtures
 ```
 
 ## Region architecture

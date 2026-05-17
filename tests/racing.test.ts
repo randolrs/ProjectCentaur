@@ -1,7 +1,19 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { RacingApiClient } from '@/lib/racing/client';
 import { ukRegionStrategy, usRegionStrategy, usToday } from '@/lib/racing/regions';
-import type { RawUsRacecardData } from '@/lib/racing/types';
+import {
+  naEntriesResponseSchema,
+  naMeetsResponseSchema,
+  type RawUsRacecardData,
+} from '@/lib/racing/types';
+
+/** Load and JSON-parse a captured Racing API fixture. */
+function fixture(name: string): unknown {
+  const url = new URL(`./fixtures/racing/${name}`, import.meta.url);
+  return JSON.parse(readFileSync(fileURLToPath(url), 'utf8'));
+}
 
 describe('usToday', () => {
   it('formats the current racing day as YYYY-MM-DD', () => {
@@ -17,55 +29,71 @@ describe('UsRegionStrategy', () => {
     expect(usRegionStrategy.vocabulary.currency).toBe('USD');
     expect(usRegionStrategy.suggestedBetTypes).toContain('exacta');
   });
+});
 
-  it('normalizes raw NA data into region-agnostic racecards', () => {
-    const raw: RawUsRacecardData = {
-      date: '2026-05-17',
-      meets: [
-        {
-          meet: { meet_id: 'm1', track_name: 'Gulfstream Park', country: 'USA' },
-          entries: {
-            track_name: 'Gulfstream Park',
-            races: [
-              {
-                race_id: 'r1',
-                race_number: '3',
-                post_time: '2026-05-17T18:30:00Z',
-                surface: 'Dirt',
-                distance: '6f',
-                race_class: 'Allowance',
-                conditions: 'For three year olds and upward',
-                runners: [
-                  {
-                    program_number: 1,
-                    horse_name: 'Centaur Bay',
-                    jockey: 'J. Rosario',
-                    trainer: 'T. Pletcher',
-                    morning_line_odds: '5/2',
-                  },
-                  { program_number: 2, horse_name: 'Railbird', jockey: 'I. Ortiz' },
-                ],
-              },
-            ],
-          },
-        },
-      ],
-    };
+describe('US racecard normalization', () => {
+  const meets = naMeetsResponseSchema.parse(fixture('meets.json'));
+  const aqueduct = naEntriesResponseSchema.parse(fixture('entries-aqueduct.json'));
+  const gulfstream = naEntriesResponseSchema.parse(fixture('entries-gulfstream.json'));
 
-    const cards = usRegionStrategy.raceNormalization(raw);
-    expect(cards).toHaveLength(1);
+  const raw: RawUsRacecardData = {
+    date: '2026-05-17',
+    meets: [
+      { meet: meets.meets![0]!, entries: aqueduct },
+      { meet: meets.meets![1]!, entries: gulfstream },
+    ],
+  };
+  const cards = usRegionStrategy.raceNormalization(raw);
 
-    const card = cards[0]!;
-    expect(card.region).toBe('us');
-    expect(card.track).toBe('Gulfstream Park');
-    expect(card.raceNumber).toBe(3);
-    expect(card.surface).toBe('Dirt');
-    expect(card.distance).toBe('6f');
-    expect(card.raceClass).toBe('Allowance');
-    expect(card.fieldSize).toBe(2);
-    expect(card.runners[0]!.horseName).toBe('Centaur Bay');
-    expect(card.runners[0]!.programNumber).toBe('1');
-    expect(card.runners[1]!.morningLineOdds).toBeNull();
+  it('produces one card per race across every meet', () => {
+    expect(cards).toHaveLength(5); // 3 Aqueduct races + 2 Gulfstream races
+  });
+
+  it('reads the nested race number and provider display fields', () => {
+    const race1 = cards[0]!;
+    expect(race1.region).toBe('us');
+    expect(race1.track).toBe('Aqueduct');
+    expect(race1.raceNumber).toBe(1);
+    expect(race1.surface).toBe('Dirt');
+    expect(race1.distance).toBe('6 1/2 Furlongs');
+    expect(race1.raceClass).toBe('MAIDEN SPECIAL WEIGHT');
+    expect(race1.postTime).toBe('12:40 PM');
+    expect(race1.postTimestamp).toBe(1779033600000);
+    expect(race1.purse).toBe(80000);
+  });
+
+  it('flattens jockey and trainer objects into display names', () => {
+    const felonious = cards[0]!.runners[0]!;
+    expect(felonious.horseName).toBe('Felonious');
+    expect(felonious.jockey).toBe('Ricardo Santana, Jr.');
+    expect(felonious.trainer).toBe('Todd A. Pletcher');
+    expect(felonious.morningLineOdds).toBe('5/2');
+  });
+
+  it('falls back to the alias when a person has no name parts', () => {
+    expect(cards[0]!.runners[1]!.jockey).toBe('Ortiz I Jr');
+  });
+
+  it('tolerates a null jockey', () => {
+    expect(cards[1]!.runners[1]!.jockey).toBeNull();
+  });
+
+  it('marks scratched runners and excludes them from field size', () => {
+    const race1 = cards[0]!;
+    expect(race1.runners).toHaveLength(3);
+    expect(race1.runners[2]!.scratched).toBe(true);
+    expect(race1.runners[0]!.scratched).toBe(false);
+    expect(race1.fieldSize).toBe(2);
+  });
+
+  it('synthesizes conditions from the restriction fields', () => {
+    expect(cards[1]!.conditions).toBe(
+      '3 Year Olds And Up · Fillies And Mares · Non-winners of two races',
+    );
+  });
+
+  it('retains the raw race object for the races.raw_data column', () => {
+    expect(cards[0]!.raw).toMatchObject({ race_class: 'MAIDEN SPECIAL WEIGHT' });
   });
 });
 
@@ -85,7 +113,12 @@ describe('RacingApiClient', () => {
     const fakeFetch = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
       expect(String(input)).toContain('/v1/north-america/meets');
       return new Response(
-        JSON.stringify({ meets: [{ meet_id: 'm1', track_name: 'Gulfstream Park' }] }),
+        JSON.stringify({
+          limit: 50,
+          skip: 0,
+          query: [],
+          meets: [{ meet_id: 'm1', track_id: 'GP', track_name: 'Gulfstream Park', country: 'USA' }],
+        }),
         { status: 200, headers: { 'content-type': 'application/json' } },
       );
     });

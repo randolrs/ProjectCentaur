@@ -86,11 +86,22 @@ export class RacingApiClient {
     return (await response.json()) as T;
   }
 
-  /** List North America meets (a track's card for a day) for a date. */
-  async listNorthAmericaMeets(date: string): Promise<NaMeetsResponse> {
+  /**
+   * List North America meets (a track's card for a day) for a date.
+   *
+   * The endpoint paginates: `limit` is capped at 50 by the provider and
+   * `skip` offsets into the result set.
+   */
+  async listNorthAmericaMeets(
+    date: string,
+    limit = 50,
+    skip = 0,
+  ): Promise<NaMeetsResponse> {
     const json = await this.get('/v1/north-america/meets', {
       start_date: date,
       end_date: date,
+      limit,
+      skip,
     });
     return naMeetsResponseSchema.parse(json);
   }
