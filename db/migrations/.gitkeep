@@ -1,0 +1,2 @@
+# Drizzle migrations live here.
+# Empty in M0 — the first migration is generated in M1 via `npm run db:generate`.
