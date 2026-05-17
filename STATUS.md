@@ -4,9 +4,8 @@
 
 **State:** Code-complete; production build, typecheck, and the unit +
 integration test suites pass locally. The `races` migration
-(`0003_bouncy_silver_centurion.sql`) is generated and checked in but **not yet
-applied** — this sandbox's network policy blocks Supabase. Live ingestion
-against the Racing API is also pending: the sandbox blocks
+(`0003_bouncy_silver_centurion.sql`) is applied to the hosted Supabase
+project. Live ingestion against the Racing API is pending: the sandbox blocks
 `api.theracingapi.com` (the M0 deferral).
 
 _Last updated: 2026-05-17 · branch `claude/apply-m1-migration-KNaf6`_
@@ -62,9 +61,6 @@ _Last updated: 2026-05-17 · branch `claude/apply-m1-migration-KNaf6`_
 
 ### Deferred — founder action required
 
-- **Apply migration `0003`** to the hosted Supabase DB (`npm run db:migrate`,
-  or paste the SQL into the SQL Editor). Can also be applied via the Supabase
-  MCP on request.
 - **Set `CRON_SECRET`** in the Vercel project environment (e.g.
   `openssl rand -hex 32`).
 - **Live ingestion verification.** Allowlist `api.theracingapi.com` on the
