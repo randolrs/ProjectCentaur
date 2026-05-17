@@ -55,7 +55,11 @@ export async function signIn(formData: FormData): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) {
-    errorRedirect('/login', 'Email or password is incorrect.');
+    const message =
+      error.code === 'email_not_confirmed'
+        ? 'Confirm your email address before logging in — check your inbox for the confirmation link.'
+        : 'Email or password is incorrect.';
+    errorRedirect('/login', message);
   }
   redirect('/dashboard');
 }

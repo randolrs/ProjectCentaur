@@ -10,3 +10,19 @@ export function firstParam(
 ): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
+
+// Guards post-auth redirects against open-redirect attacks: only same-origin
+// relative paths are accepted. Protocol-relative (`//host`) and backslash
+// (`/\host`, which some browsers normalize to `//host`) targets are rejected.
+export function safeRedirectPath(
+  value: string | null | undefined,
+  fallback: string,
+): string {
+  if (typeof value !== 'string' || !value.startsWith('/')) {
+    return fallback;
+  }
+  if (value.startsWith('//') || value.startsWith('/\\')) {
+    return fallback;
+  }
+  return value;
+}
