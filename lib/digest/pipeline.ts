@@ -1,7 +1,9 @@
 import {
   type DigestEligibleUser,
+  getDigestEligibleUser,
   getDigestEligibleUsers,
   getRacesForTracks,
+  getSentDigestCountByUser,
 } from '@/db/queries';
 import { renderDigestEmail } from './email';
 import { DigestLlmError, generateDigest } from './llm';
@@ -10,6 +12,7 @@ import { buildRenderedDigest } from './render';
 import { isUserDue, localParts } from './schedule';
 import { selectRacesForUser } from './select';
 import { sendEmail } from '@/lib/email/resend';
+import { getSiteUrl } from '@/lib/env';
 import { isSubscriptionActive } from '@/lib/stripe/subscription';
 
 // ---------------------------------------------------------------------------
@@ -28,6 +31,24 @@ const MAX_RACES_PER_DIGEST = 10;
 
 // Per-user spend tripwire: a digest costing more than this logs an alert.
 const COST_ALERT_USD = 0.5;
+
+// Digests an unsubscribed user receives free before the paywall applies —
+// the immediate one at onboarding plus their first scheduled morning digest.
+const FREE_DIGEST_LIMIT = 2;
+
+/**
+ * Whether a user should receive a digest now: active subscribers always, and
+ * unsubscribed users until they have received their free allotment.
+ */
+export function canReceiveDigest(
+  subscriptionStatus: string | null | undefined,
+  sentDigestCount: number,
+): boolean {
+  return (
+    isSubscriptionActive(subscriptionStatus) ||
+    sentDigestCount < FREE_DIGEST_LIMIT
+  );
+}
 
 export type DigestOutcome =
   | 'sent'
@@ -103,7 +124,13 @@ export async function runDigestForUser(
   }
 
   const digest = buildRenderedDigest(llmOutput, scored);
-  const email = renderDigestEmail(digest, raceDate);
+  // Unsubscribed users (those on a free digest) get an upgrade call to action.
+  const subscribed = isSubscriptionActive(eligible.subscription?.status);
+  const email = renderDigestEmail(
+    digest,
+    raceDate,
+    subscribed ? {} : { upgradeUrl: `${getSiteUrl()}/subscribe` },
+  );
 
   let outcome: DigestOutcome = 'sent';
   let resendId: string | null = null;
@@ -209,33 +236,59 @@ async function deliverDigests(
 }
 
 /**
- * Cron entry point. Delivers digests to every onboarded user with an active
- * subscription for whom `now` is their configured delivery hour and who has
- * no digest yet for their local racing day.
+ * Cron entry point. Delivers digests to every onboarded user who may receive
+ * one now — an active subscriber, or an unsubscribed user still inside their
+ * free allotment — for whom `now` is their configured delivery hour.
  */
 export async function runHourlyDigest(
   now: Date = new Date(),
 ): Promise<DigestRunSummary> {
   const eligible = await getDigestEligibleUsers();
+  const sentCounts = await getSentDigestCountByUser();
   const due = eligible.filter(
     (e) =>
-      isSubscriptionActive(e.subscription?.status) && isUserDue(e.user, now),
+      canReceiveDigest(
+        e.subscription?.status,
+        sentCounts.get(e.user.id) ?? 0,
+      ) && isUserDue(e.user, now),
   );
   return deliverDigests(due, eligible.length, now);
 }
 
 /**
- * Forced run: deliver to every onboarded user with an active subscription
- * immediately, ignoring each user's configured delivery hour. Idempotency
- * still holds — a user who already has a digest for the current racing day
- * is skipped. Used by the admin console.
+ * Forced run: deliver to every onboarded user who may receive a digest now,
+ * ignoring each user's configured delivery hour. Idempotency still holds — a
+ * user who already has a digest for the current racing day is skipped. Used
+ * by the admin console.
  */
 export async function runDigestForAllUsers(
   now: Date = new Date(),
 ): Promise<DigestRunSummary> {
   const eligible = await getDigestEligibleUsers();
-  const subscribed = eligible.filter((e) =>
-    isSubscriptionActive(e.subscription?.status),
+  const sentCounts = await getSentDigestCountByUser();
+  const deliverable = eligible.filter((e) =>
+    canReceiveDigest(e.subscription?.status, sentCounts.get(e.user.id) ?? 0),
   );
-  return deliverDigests(subscribed, eligible.length, now);
+  return deliverDigests(deliverable, eligible.length, now);
+}
+
+/**
+ * Send a user their digest immediately on finishing onboarding — their first
+ * free digest, today's card. Best-effort: a missing profile or a send failure
+ * is swallowed, since the hourly cron still covers the user afterward.
+ */
+export async function triggerImmediateDigest(userId: string): Promise<void> {
+  try {
+    const eligible = await getDigestEligibleUser(userId);
+    if (!eligible) return;
+    const { date } = localParts(eligible.user.timezone, new Date());
+    // Don't double up if a digest for today already exists.
+    if (await getDigest(userId, date)) return;
+    await runDigestForUser(eligible, date);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(
+      `[digest] immediate trigger failed for ${userId}: ${message}`,
+    );
+  }
 }

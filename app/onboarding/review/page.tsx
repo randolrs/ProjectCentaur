@@ -7,6 +7,10 @@ import { firstParam, type SearchParams } from '@/lib/search-params';
 import { createClient } from '@/lib/supabase/server';
 import { confirmProfile, saveProfileEdits } from './actions';
 
+// Confirming onboarding triggers the user's first digest — an LLM call and
+// an email send — so allow a generous execution window.
+export const maxDuration = 300;
+
 const VALUE_THRESHOLD_LABELS: Record<string, string> = {
   favorites_ok: 'Favorites are fine when the horse is right',
   mid_range: 'Mid-range prices — some edge required',
