@@ -5,9 +5,9 @@ import { type DigestRow, digests, type NewDigestRow } from '@/db/schema';
 // ---------------------------------------------------------------------------
 // Digest persistence.
 //
-// One `digests` row per (user, racing day). The pipeline checks for an
-// existing row before doing any work, so a re-triggered cron run never
-// regenerates or re-sends a digest a user already received.
+// One `digests` row per (user, racing day). The pipeline skips a user whose
+// row is already `sent`, so a re-triggered run never re-sends a digest a
+// user already received; a prior skip or failure is retried.
 // ---------------------------------------------------------------------------
 
 /** The digest row for a user on a racing day, or null if none exists. */
