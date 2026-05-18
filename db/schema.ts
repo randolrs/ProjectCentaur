@@ -232,6 +232,9 @@ export const races = pgTable(
     region: text('region').notNull(),
     raceDate: date('race_date', { mode: 'string' }).notNull(),
     track: text('track').notNull(),
+    // Provider track name collapsed onto the onboarding vocabulary; the
+    // digest matches a user's followed tracks against this column.
+    trackCanonical: text('track_canonical').notNull(),
     raceNumber: integer('race_number'),
     postTime: text('post_time'),
     postTimestamp: bigint('post_timestamp', { mode: 'number' }),
@@ -258,7 +261,10 @@ export const races = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('races_date_track_idx').on(table.raceDate, table.track),
+    index('races_date_track_canonical_idx').on(
+      table.raceDate,
+      table.trackCanonical,
+    ),
     pgPolicy('races_select_all', {
       for: 'select',
       to: authenticatedRole,

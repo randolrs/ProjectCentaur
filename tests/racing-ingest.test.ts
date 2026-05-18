@@ -2,8 +2,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  CANONICAL_TRACKS,
   canonicalRaceClass,
   canonicalSurface,
+  canonicalTrack,
   parseDistanceFurlongs,
 } from '@/lib/racing/canonical';
 import {
@@ -81,6 +83,28 @@ describe('parseDistanceFurlongs', () => {
   });
 });
 
+describe('canonicalTrack', () => {
+  it('collapses provider track variants onto the onboarding vocabulary', () => {
+    expect(canonicalTrack('Belmont at the Big A')).toBe('Belmont Park');
+    expect(canonicalTrack('Santa Anita')).toBe('Santa Anita Park');
+    expect(canonicalTrack('gulfstream')).toBe('Gulfstream Park');
+    expect(canonicalTrack('Churchill Downs')).toBe('Churchill Downs');
+  });
+
+  it('passes unknown tracks through trimmed', () => {
+    expect(canonicalTrack('  Hawthorne  ')).toBe('Hawthorne');
+    expect(canonicalTrack('')).toBe('Unknown');
+    expect(canonicalTrack(null)).toBe('Unknown');
+  });
+
+  it('canonicalises every track in the onboarding vocabulary to itself', () => {
+    for (const track of usRegionStrategy.vocabulary.v1Tracks) {
+      expect(CANONICAL_TRACKS).toContain(track);
+      expect(canonicalTrack(track)).toBe(track);
+    }
+  });
+});
+
 describe('racecardKey', () => {
   it('builds a deterministic region|date|track|race key', () => {
     expect(racecardKey('2026-05-17', cards[0]!)).toBe('us|2026-05-17|Aqueduct|1');
@@ -98,6 +122,8 @@ describe('racecardToRow', () => {
     const row = racecardToRow(cards[0]!, '2026-05-17');
     expect(row.key).toBe('us|2026-05-17|Aqueduct|1');
     expect(row.source).toBe('theracingapi');
+    expect(row.track).toBe('Aqueduct');
+    expect(row.trackCanonical).toBe('Aqueduct');
     expect(row.raceDate).toBe('2026-05-17');
     expect(row.surface).toBe('Dirt');
     expect(row.surfaceCanonical).toBe('dirt');
@@ -112,6 +138,7 @@ describe('racecardToRow', () => {
     const gulfstreamMaiden = cards[4]!;
     const row = racecardToRow(gulfstreamMaiden, '2026-05-17');
     expect(row.track).toBe('Gulfstream Park');
+    expect(row.trackCanonical).toBe('Gulfstream Park');
     expect(row.surfaceCanonical).toBe('synthetic');
     expect(row.raceClassCanonical).toBe('maiden');
     expect(row.distanceFurlongs).toBe(5);

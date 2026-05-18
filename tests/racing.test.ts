@@ -49,6 +49,19 @@ describe('US racecard normalization', () => {
     expect(cards).toHaveLength(5); // 3 Aqueduct races + 2 Gulfstream races
   });
 
+  it('drops multi-track wager pools that masquerade as tracks', () => {
+    const poolRaw: RawUsRacecardData = {
+      date: '2026-05-17',
+      meets: [
+        {
+          meet: meets.meets![0]!,
+          entries: { ...aqueduct, track_name: 'Cross Country Pick 5' },
+        },
+      ],
+    };
+    expect(usRegionStrategy.raceNormalization(poolRaw)).toHaveLength(0);
+  });
+
   it('reads the nested race number and provider display fields', () => {
     const race1 = cards[0]!;
     expect(race1.region).toBe('us');
