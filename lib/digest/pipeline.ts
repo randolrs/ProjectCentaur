@@ -7,8 +7,7 @@ import { renderDigestEmail } from './email';
 import { DigestLlmError, generateDigest } from './llm';
 import { getDigest, recordDigest } from './persistence';
 import { buildRenderedDigest } from './render';
-import { localParts } from './schedule';
-import { isUserDue } from './schedule';
+import { isUserDue, localParts } from './schedule';
 import { selectRacesForUser } from './select';
 import { sendEmail } from '@/lib/email/resend';
 
@@ -140,15 +139,16 @@ export async function runDigestForUser(
 }
 
 /**
- * Cron entry point. Delivers digests to every onboarded user for whom `now`
- * is their configured delivery hour and who has no digest yet for their
- * local racing day.
+ * Deliver digests to a prepared set of users. Shared by the scheduled and
+ * the forced (admin) entry points; `considered` is the size of the full
+ * onboarded population so the summary can tell "no users" apart from
+ * "no users due this hour".
  */
-export async function runHourlyDigest(
-  now: Date = new Date(),
+async function deliverDigests(
+  due: DigestEligibleUser[],
+  considered: number,
+  now: Date,
 ): Promise<DigestRunSummary> {
-  const eligible = await getDigestEligibleUsers();
-  const due = eligible.filter((e) => isUserDue(e.user, now));
   const results: UserDigestResult[] = [];
 
   for (const candidate of due) {
@@ -186,7 +186,7 @@ export async function runHourlyDigest(
 
   const summary: DigestRunSummary = {
     triggeredAt: now.toISOString(),
-    considered: eligible.length,
+    considered,
     due: due.length,
     sent: results.filter((r) => r.outcome === 'sent').length,
     skipped: results.filter(
@@ -202,4 +202,30 @@ export async function runHourlyDigest(
       `cost=$${summary.totalCostUsd.toFixed(4)}`,
   );
   return summary;
+}
+
+/**
+ * Cron entry point. Delivers digests to every onboarded user for whom `now`
+ * is their configured delivery hour and who has no digest yet for their
+ * local racing day.
+ */
+export async function runHourlyDigest(
+  now: Date = new Date(),
+): Promise<DigestRunSummary> {
+  const eligible = await getDigestEligibleUsers();
+  const due = eligible.filter((e) => isUserDue(e.user, now));
+  return deliverDigests(due, eligible.length, now);
+}
+
+/**
+ * Forced run: deliver to every onboarded user immediately, ignoring each
+ * user's configured delivery hour. Idempotency still holds — a user who
+ * already has a digest for the current racing day is skipped. Used by the
+ * admin console.
+ */
+export async function runDigestForAllUsers(
+  now: Date = new Date(),
+): Promise<DigestRunSummary> {
+  const eligible = await getDigestEligibleUsers();
+  return deliverDigests(eligible, eligible.length, now);
 }
