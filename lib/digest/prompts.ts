@@ -33,13 +33,28 @@ function profileSection(
   ].join('\n');
 }
 
-/** One runner line: program number, name, ML odds, trainer. */
-function runnerLine(runner: Runner): string {
+/**
+ * One runner line for the digest prompt: program number, horse, ML odds,
+ * and the field detail a handicapper reads — jockey, trainer, weight, and
+ * any medication / equipment. Absent fields are omitted cleanly.
+ */
+export function runnerLine(runner: Runner): string {
   const number = runner.programNumber ? `${runner.programNumber}. ` : '';
   const name = runner.horseName ?? 'Unknown';
   const odds = runner.morningLineOdds ? ` (ML ${runner.morningLineOdds})` : '';
-  const trainer = runner.trainer ? ` — trn ${runner.trainer.name}` : '';
-  return `    ${number}${name}${odds}${trainer}`;
+  const connections = [
+    runner.jockey ? `J ${runner.jockey.name}` : null,
+    runner.trainer ? `T ${runner.trainer.name}` : null,
+  ].filter((part): part is string => part !== null);
+  const extras = [
+    runner.weight ? `${runner.weight} lbs` : null,
+    runner.medication,
+    runner.equipment,
+  ].filter((part): part is string => Boolean(part));
+  const detail = [connections.join(' / '), ...extras]
+    .filter((part) => part.length > 0)
+    .join(' · ');
+  return `    ${number}${name}${odds}${detail ? ` — ${detail}` : ''}`;
 }
 
 function raceSection(scored: ScoredRace): string {
