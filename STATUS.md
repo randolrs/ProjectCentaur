@@ -73,8 +73,12 @@ _Last updated: 2026-05-17 · branch `claude/apply-m1-migration-KNaf6`_
   delivery needs a Pro plan. On Hobby, either upgrade or change the digest
   schedule to a single fixed hour.
 - **Live end-to-end run.** Once ingestion has populated `races` and Resend is
-  configured, trigger `GET /api/cron/digest` with the bearer token and confirm
-  an email is delivered and a `digests` row is written.
+  configured, trigger `GET /api/cron/digest` with the bearer token — or use the
+  admin console at `/admin` — and confirm an email is delivered and a `digests`
+  row is written.
+- **Configure admin access.** Set `ADMIN_EMAILS` (comma-separated) in the
+  Vercel project env to the addresses allowed to reach `/admin`, the console
+  for manually triggering ingestion and digest delivery. Unset means no admin.
 - **Prompt-quality review.** Read generated digests against real race data and
   tune `lib/llm/prompts/us/digest_system.ts` — the digest is the product's
   core value and the prompt has not been exercised live.

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   getHandicapperProfile,
@@ -5,6 +6,7 @@ import {
   getUserProfile,
 } from '@/db/queries';
 import { signOut } from '@/lib/actions/auth';
+import { isAdminEmail } from '@/lib/admin';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function DashboardPage() {
@@ -50,14 +52,24 @@ export default async function DashboardPage() {
             </h1>
             <p className="text-sm text-neutral-400">{user.email}</p>
           </div>
-          <form action={signOut}>
-            <button
-              type="submit"
-              className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:border-neutral-400"
-            >
-              Sign out
-            </button>
-          </form>
+          <div className="flex shrink-0 items-center gap-2">
+            {isAdminEmail(user.email) && (
+              <Link
+                href="/admin"
+                className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:border-neutral-400"
+              >
+                Admin
+              </Link>
+            )}
+            <form action={signOut}>
+              <button
+                type="submit"
+                className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:border-neutral-400"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
         </header>
 
         <p className="text-sm text-neutral-400">
