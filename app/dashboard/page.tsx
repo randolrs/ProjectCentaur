@@ -135,14 +135,25 @@ export default async function DashboardPage() {
           </p>
         </section>
 
-        <dl className="divide-y divide-neutral-800 rounded-md border border-neutral-800">
-          {rows.map(([label, value]) => (
-            <div key={label} className="flex gap-4 px-4 py-3 text-sm">
-              <dt className="w-32 shrink-0 text-neutral-500">{label}</dt>
-              <dd className="text-neutral-100">{value}</dd>
-            </div>
-          ))}
-        </dl>
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Preferences</h2>
+            <Link
+              href="/preferences"
+              className="text-sm text-neutral-400 underline hover:text-neutral-100"
+            >
+              Edit
+            </Link>
+          </div>
+          <dl className="divide-y divide-neutral-800 rounded-md border border-neutral-800">
+            {rows.map(([label, value]) => (
+              <div key={label} className="flex gap-4 px-4 py-3 text-sm">
+                <dt className="w-32 shrink-0 text-neutral-500">{label}</dt>
+                <dd className="text-neutral-100">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
       </div>
     </main>
   );
