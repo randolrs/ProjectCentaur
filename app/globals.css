@@ -1,1 +1,14 @@
 @import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Furlong brand — a print-heritage palette: warm ink, newsprint cream, and a
+   turf-green accent. These tokens are used on the public marketing surfaces;
+   the in-app screens keep Tailwind's default neutral palette.
+   --------------------------------------------------------------------------- */
+@theme {
+  --color-ink: #1b1713;
+  --color-paper: #f4eee1;
+  --color-turf: #3c7d4f;
+  --color-turf-bright: #6cba88;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+}
