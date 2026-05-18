@@ -1,5 +1,152 @@
 # Project Status
 
+## M4 — Digest pipeline
+
+**State:** Code-complete; production build, typecheck, and the unit test
+suites pass locally. The `digests` migration (`0004_fantastic_thunderbolt.sql`)
+is applied to the hosted Supabase project. Live end-to-end delivery is pending
+founder action — the sandbox blocks the Anthropic API and outbound email, and
+Resend is not yet configured.
+
+_Last updated: 2026-05-17 · branch `claude/apply-m1-migration-KNaf6`_
+
+### Shipped
+
+- **`digests` table** (`db/schema.ts`, migration `0004`). One row per
+  (user, racing day): the rendered digest (`content` jsonb), delivery status,
+  Resend message id, and LLM cost. A unique `(user_id, race_date)` constraint
+  makes the pipeline idempotent; owner-only RLS for reads.
+- **Race selection** (`lib/digest/select.ts`) — `selectRacesForUser`, a pure
+  deterministic filter narrowing a user's followed-track races to those
+  matching their structured preferences (surface, class, distance range,
+  field-size band), each carrying plain-language match reasons.
+- **Digest LLM** (`lib/digest/llm.ts`) — `generateDigest` wraps Claude
+  Sonnet 4.6: one call writes the whole digest (intro + per-race headline and
+  reasoning). Prompt caching on the system prompt, adaptive thinking, retry on
+  transient/parse failure, per-run token + USD cost tracking.
+- **Assembly + fallback** (`lib/digest/render.ts`) — `buildRenderedDigest`
+  merges model prose with the structured race fields; on model failure it
+  builds a deterministic digest from the match reasons, so a user always gets
+  a usable digest.
+- **Email** (`lib/digest/email.ts`, `lib/email/resend.ts`) — inline-styled
+  HTML + plain-text rendering; delivery via a dependency-free `fetch` wrapper
+  over the Resend REST API.
+- **Pipeline** (`lib/digest/pipeline.ts`) — `runHourlyDigest` walks every
+  onboarded user, delivers to those for whom it is currently their delivery
+  hour (`lib/digest/schedule.ts`, per-user timezone), skips any user who
+  already has a digest for their local racing day, and isolates each user in
+  a try/catch.
+- **Cron** — `GET /api/cron/digest` (hourly) and the existing
+  `/api/cron/ingest` (daily) are scheduled in `vercel.json`; both share the
+  `CRON_SECRET` bearer guard (`lib/cron.ts`).
+- **Tests** — `tests/digest-select.test.ts`, `tests/digest-schedule.test.ts`,
+  `tests/digest-render.test.ts`, `tests/unit/digest-llm.test.ts`.
+
+### Decisions
+
+- **Deterministic filter, LLM reasoning.** The structured filter decides
+  *which* races qualify; the LLM only explains *why* they fit this
+  handicapper. The model never sees a race that failed the filter, so it
+  cannot pad the digest.
+- **One LLM call per user per day.** All selected races (capped at 10) go in
+  one request, so the model can compare races and cost is one call. Sonnet
+  4.6, consistent with M2.
+- **Hourly cron, per-user delivery hour.** The digest cron runs hourly; each
+  run delivers to users whose local time equals their `digest_delivery_hour`.
+  This honours the per-user timezone + hour already in the schema. (Hourly
+  Vercel Cron needs a Pro plan; Hobby runs cron once daily — see Deferred.)
+- **Idempotent on (user, race_date).** A digest row — sent, skipped, or
+  failed — blocks reprocessing for that user's racing day. A failed send is
+  not auto-retried within the day, by design (no risk of duplicate emails).
+- **No SDK dependency for email.** Resend is called via `fetch`, matching the
+  Racing API client; no new package.
+
+### Deferred — founder action required
+
+- **Configure Resend.** Set `RESEND_API_KEY` in the Vercel project env (and
+  locally). `DIGEST_FROM_EMAIL` defaults to Resend's shared dev sender
+  (`onboarding@resend.dev`), which delivers only to the Resend account owner —
+  enough for testing. For real delivery, verify a sender domain in Resend and
+  set `DIGEST_FROM_EMAIL` to an address on it.
+- **Vercel plan for hourly cron.** `vercel.json` schedules the digest cron
+  hourly. Vercel Hobby runs cron at most once per day; hourly per-user
+  delivery needs a Pro plan. On Hobby, either upgrade or change the digest
+  schedule to a single fixed hour.
+- **Live end-to-end run.** Once ingestion has populated `races` and Resend is
+  configured, trigger `GET /api/cron/digest` with the bearer token and confirm
+  an email is delivered and a `digests` row is written.
+- **Prompt-quality review.** Read generated digests against real race data and
+  tune `lib/llm/prompts/us/digest_system.ts` — the digest is the product's
+  core value and the prompt has not been exercised live.
+
+## M3 — Race ingestion & query layer
+
+**State:** Code-complete; production build, typecheck, and the unit +
+integration test suites pass locally. The `races` migration
+(`0003_bouncy_silver_centurion.sql`) is applied to the hosted Supabase
+project. Live ingestion against the Racing API is pending: the sandbox blocks
+`api.theracingapi.com` (the M0 deferral).
+
+_Last updated: 2026-05-17 · branch `claude/apply-m1-migration-KNaf6`_
+
+### Shipped
+
+- **Corrected NA wire schemas.** M0 hand-guessed the theracingapi.com North
+  America shapes because the docs were gated. The real OpenAPI 3.1 spec is now
+  in hand, and `lib/racing/types.ts` + the normalizer in `lib/racing/regions.ts`
+  are rewritten to match it: race number is nested in `race_key.race_number`;
+  surface/distance are `surface_description` / `distance_description`;
+  `jockey`/`trainer` are person objects (flattened to display names); the meets
+  endpoint paginates (`limit` ≤ 50, `skip`). Runner-level scratches are tracked
+  and excluded from `fieldSize`.
+- **`races` table** (`db/schema.ts`, migration `0003`). One row per race,
+  carrying the raw provider payload (`raw_data` jsonb) alongside structured,
+  queryable columns — canonical surface / class, `distance_furlongs`,
+  `post_timestamp`, `field_size`, `purse` — so the M4 digest can filter in SQL.
+  Idempotency key `region|date|track|raceNumber`. RLS on; authenticated users
+  may read; ingestion writes via the Drizzle owner role.
+- **Canonicalization** (`lib/racing/canonical.ts`) — pure `canonicalSurface`,
+  `canonicalRaceClass`, and `parseDistanceFurlongs` helpers that collapse the
+  provider's free-form strings onto the fixed onboarding vocabulary
+  (`lib/onboarding/options.ts`).
+- **Ingestion** (`lib/racing/ingest.ts`) — `racecardToRow` /
+  `racecardsToRows` (de-duplicated by natural key) and `ingestRacecards`, an
+  idempotent `INSERT … ON CONFLICT DO UPDATE` upsert. `ingestTodaysUsRaces`
+  fetches, normalizes, and persists today's US cards.
+- **Trigger route** — `GET /api/cron/ingest`, guarded by a `CRON_SECRET`
+  bearer token (the header Vercel Cron attaches automatically). M4 wires the
+  actual schedule.
+- **Query layer** (`db/queries.ts`) — `getRacesForDate` and
+  `getRacesForTracks` (the digest's per-user followed-track scope).
+- **Tests** — `tests/fixtures/racing/*.json` (real-shape captured-style
+  meets + entries fixtures); `tests/racing.test.ts` rewritten for the real
+  wire format; `tests/racing-ingest.test.ts` covers canonicalizers, the
+  racecard→row mapping, key stability, and natural-key de-duplication.
+
+### Decisions
+
+- **Data source unchanged.** theracingapi.com remains the upstream; the
+  founder's `beethoven` project was used only as a reference for how its
+  racing data is modelled and consumed.
+- **Single `races` table, runners as jsonb.** No separate `race_entries` /
+  `tracks` tables — the digest scores whole racecards, and track is already a
+  text field on user preferences. (`beethoven` splits these because it serves
+  per-horse pages, which this product does not.)
+- **Canonical fields are stored, not computed.** The digest filters races
+  against user preferences; persisting `surface_canonical`,
+  `race_class_canonical`, and `distance_furlongs` keeps that filtering in SQL.
+- **Ingest route is `GET`.** Vercel Cron triggers via GET and attaches the
+  `CRON_SECRET` bearer automatically; the upsert is idempotent regardless.
+
+### Deferred — founder action required
+
+- **Live ingestion verification.** Allowlist `api.theracingapi.com` on the
+  environment's network policy (or run locally with `RACING_API_*` set), then
+  hit `GET /api/cron/ingest` with the bearer token and confirm rows land in
+  `races`. The fixtures match the published OpenAPI schema, but real-data
+  field *values* (e.g. exact `surface_description` / `race_class` strings)
+  should still be spot-checked on the first live run.
+
 ## M2 — Conversational onboarding
 
 **State:** Code-complete; production build, typecheck, and the unit +
@@ -63,9 +210,6 @@ _Last updated: 2026-05-17 · branch `claude/apply-m1-migration-KNaf6`_
 
 ### Deferred — founder action required
 
-- **Set `ANTHROPIC_API_KEY`** in the Vercel project environment (and locally).
-  Without it the conversation server action throws and every conversation
-  falls back to the structured-data profile.
 - **Live verification** on the Vercel preview: signup -> structured onboarding
   -> conversation -> review -> dashboard, plus the edit form.
 - **Prompt-quality bar (blocks M2 close).** Run the three founder tests from

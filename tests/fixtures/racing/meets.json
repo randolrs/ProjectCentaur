@@ -1,0 +1,31 @@
+{
+  "limit": 50,
+  "skip": 0,
+  "query": [
+    ["start_date", "2026-05-17"],
+    ["end_date", "2026-05-17"]
+  ],
+  "meets": [
+    {
+      "country": "USA",
+      "date": "2026-05-17",
+      "meet_id": "AQU_1779000000000",
+      "track_id": "AQU",
+      "track_name": "Aqueduct"
+    },
+    {
+      "country": "USA",
+      "date": "2026-05-17",
+      "meet_id": "GP_1779000000000",
+      "track_id": "GP",
+      "track_name": "Gulfstream Park"
+    },
+    {
+      "country": "CAN",
+      "date": "2026-05-17",
+      "meet_id": "WO_1779000000000",
+      "track_id": "WO",
+      "track_name": "Woodbine"
+    }
+  ]
+}

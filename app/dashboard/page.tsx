@@ -61,8 +61,8 @@ export default async function DashboardPage() {
         </header>
 
         <p className="text-sm text-neutral-400">
-          Your handicapping profile is saved. Your personalized morning digest
-          starts once the digest pipeline ships (M4).
+          Your handicapping profile is saved. Each morning we email you a
+          personalized digest of races at your tracks that fit how you play.
         </p>
 
         <section className="space-y-2">
