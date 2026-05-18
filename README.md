@@ -1,11 +1,9 @@
-# [PRODUCT_NAME]
+# Furlong
 
 Personalized AI morning digest for US thoroughbred handicappers. We score
 every race on the tracks a user follows against their handicapping profile and
 deliver a digest of five races worth their time each morning, with verifiable
 reasoning.
-
-Working name is TBD — `[PRODUCT_NAME]` is a placeholder in user-facing strings.
 
 ## Stack
 
