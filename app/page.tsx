@@ -16,7 +16,7 @@ export default async function Home({
       <div className="w-full max-w-md space-y-6">
         <header className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">
-            [PRODUCT_NAME]
+            Furlong
           </h1>
           <p className="text-sm leading-relaxed text-neutral-400">
             A personalized AI morning digest for US thoroughbred handicappers.

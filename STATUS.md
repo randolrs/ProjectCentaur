@@ -378,7 +378,7 @@ _Last updated: 2026-05-17 · branch `claude/setup-nextjs-supabase-vDrl1`_
 ### Shipped
 
 - Next.js 15 App Router project, TypeScript strict mode, Tailwind CSS v4.
-- Placeholder landing page at `/` — renders `[PRODUCT_NAME] — coming soon.`
+- Placeholder landing page at `/` — renders `Furlong — coming soon.`
 - Drizzle ORM wired to Supabase Postgres via `DATABASE_URL`
   (`drizzle.config.ts`, lazy client in `db/index.ts`). `db/schema.ts` is
   intentionally empty — table definitions begin in M1. `db/migrations/` is

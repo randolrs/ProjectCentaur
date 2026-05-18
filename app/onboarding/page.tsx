@@ -36,8 +36,8 @@ export default async function OnboardingPage({
             Set up your handicapping profile
           </h1>
           <p className="text-sm text-neutral-400">
-            This tells [PRODUCT_NAME] which races to surface each morning. You
-            can refine it later.
+            This tells Furlong which races to surface each morning. You can
+            refine it later.
           </p>
         </header>
 

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '[PRODUCT_NAME]',
+  title: 'Furlong',
   description: 'Personalized AI morning digest for US thoroughbred handicappers.',
 };
 
