@@ -64,3 +64,25 @@ export function getDigestFromEmail(): string {
 export function hasResendCredentials(): boolean {
   return Boolean(process.env.RESEND_API_KEY);
 }
+
+// --- Stripe (subscription billing) -----------------------------------------
+
+/** Stripe secret API key (server-side). */
+export function getStripeSecretKey(): string {
+  return requireEnv('STRIPE_SECRET_KEY');
+}
+
+/** Signing secret for the `/api/stripe/webhook` endpoint. */
+export function getStripeWebhookSecret(): string {
+  return requireEnv('STRIPE_WEBHOOK_SECRET');
+}
+
+/** The recurring Price the subscription Checkout is created against. */
+export function getStripePriceId(): string {
+  return requireEnv('STRIPE_PRICE_ID');
+}
+
+/** Publishable key — safe to expose to the browser (Payment Element). */
+export function getStripePublishableKey(): string {
+  return requireEnv('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY');
+}

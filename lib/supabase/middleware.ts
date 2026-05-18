@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PROTECTED_PREFIXES = ['/onboarding', '/dashboard', '/admin'];
+const PROTECTED_PREFIXES = ['/onboarding', '/dashboard', '/admin', '/subscribe'];
 const AUTH_ROUTES = ['/login', '/signup'];
 
 // Refreshes the Supabase session on every request and enforces coarse route

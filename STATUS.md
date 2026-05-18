@@ -1,5 +1,42 @@
 # Project Status
 
+## M6 — Subscription billing
+
+**State:** Code-complete; production build, typecheck, and unit suites pass
+locally. Migration `0007_m7_subscriptions.sql` is applied to the hosted
+Supabase project. Non-functional until the founder completes the Stripe
+dashboard setup and sets the env vars below.
+
+_Last updated: 2026-05-18 · branch `claude/apply-m1-migration-KNaf6`_
+
+### Shipped
+
+- Stripe subscription billing with the **Payment Element** — `/subscribe`
+  collects payment on our own page; the paywall sits after onboarding.
+- `subscriptions` table mirroring Stripe state; `/api/stripe/webhook`
+  (signature-verified) is the sole writer of subscription status.
+- The digest pipeline gates delivery on an active subscription —
+  `getDigestEligibleUsers` left-joins `subscriptions`, and only `active` /
+  `past_due` users receive a digest.
+- Dashboard shows subscription status with a Customer Portal "Manage
+  billing" link; unsubscribed users see a Subscribe prompt.
+
+### Decisions
+
+- **Paid from day one, no trial** — the digest gates on `active`/`past_due`
+  (a short grace window for a failed charge while Stripe retries).
+- Webhook is the source of truth for `status`; `createSubscription` writes a
+  row only so the webhook has one to update.
+- The admin "Send a digest to one email" control bypasses the gate, so an
+  unpaid test user can still be exercised.
+
+### Deferred — founder action required
+
+- **Stripe dashboard setup.** Create the product + a recurring monthly
+  Price; register a webhook endpoint at `/api/stripe/webhook`. Then set in
+  Vercel: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`,
+  `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`. Configure the Customer Portal.
+
 ## M5 — Normalized racing data model
 
 **State:** Code-complete; production build, typecheck, and unit suites pass

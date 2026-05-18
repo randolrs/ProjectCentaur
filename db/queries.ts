@@ -2,6 +2,7 @@ import { and, asc, count, eq, inArray } from 'drizzle-orm';
 import { getDb } from './index';
 import type {
   HandicapperProfileRow,
+  SubscriptionRow,
   UserPreferencesRow,
   UserRow,
 } from './schema';
@@ -9,6 +10,7 @@ import {
   handicapperProfile,
   raceEntries,
   races,
+  subscriptions,
   userPreferences,
   users,
 } from './schema';
@@ -121,12 +123,15 @@ export interface DigestEligibleUser {
   user: UserRow;
   prefs: UserPreferencesRow;
   profile: HandicapperProfileRow;
+  /** The user's subscription row, or null if they never started checkout. */
+  subscription: SubscriptionRow | null;
 }
 
 /**
  * Every user who has finished onboarding — they have both structured
- * preferences and a conversational handicapper profile. These are the users
- * the digest pipeline considers each morning.
+ * preferences and a conversational handicapper profile — joined to their
+ * subscription. The digest pipeline considers these users each morning and
+ * delivers only to the ones whose subscription is active.
  */
 export async function getDigestEligibleUsers(): Promise<DigestEligibleUser[]> {
   const db = getDb();
@@ -135,8 +140,23 @@ export async function getDigestEligibleUsers(): Promise<DigestEligibleUser[]> {
       user: users,
       prefs: userPreferences,
       profile: handicapperProfile,
+      subscription: subscriptions,
     })
     .from(users)
     .innerJoin(userPreferences, eq(userPreferences.userId, users.id))
-    .innerJoin(handicapperProfile, eq(handicapperProfile.userId, users.id));
+    .innerJoin(handicapperProfile, eq(handicapperProfile.userId, users.id))
+    .leftJoin(subscriptions, eq(subscriptions.userId, users.id));
+}
+
+/** The user's subscription row, or null if they never started checkout. */
+export async function getSubscription(
+  userId: string,
+): Promise<SubscriptionRow | null> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, userId))
+    .limit(1);
+  return rows[0] ?? null;
 }

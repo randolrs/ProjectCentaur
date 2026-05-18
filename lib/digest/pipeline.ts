@@ -10,6 +10,7 @@ import { buildRenderedDigest } from './render';
 import { isUserDue, localParts } from './schedule';
 import { selectRacesForUser } from './select';
 import { sendEmail } from '@/lib/email/resend';
+import { isSubscriptionActive } from '@/lib/stripe/subscription';
 
 // ---------------------------------------------------------------------------
 // Digest pipeline orchestration.
@@ -208,27 +209,33 @@ async function deliverDigests(
 }
 
 /**
- * Cron entry point. Delivers digests to every onboarded user for whom `now`
- * is their configured delivery hour and who has no digest yet for their
- * local racing day.
+ * Cron entry point. Delivers digests to every onboarded user with an active
+ * subscription for whom `now` is their configured delivery hour and who has
+ * no digest yet for their local racing day.
  */
 export async function runHourlyDigest(
   now: Date = new Date(),
 ): Promise<DigestRunSummary> {
   const eligible = await getDigestEligibleUsers();
-  const due = eligible.filter((e) => isUserDue(e.user, now));
+  const due = eligible.filter(
+    (e) =>
+      isSubscriptionActive(e.subscription?.status) && isUserDue(e.user, now),
+  );
   return deliverDigests(due, eligible.length, now);
 }
 
 /**
- * Forced run: deliver to every onboarded user immediately, ignoring each
- * user's configured delivery hour. Idempotency still holds — a user who
- * already has a digest for the current racing day is skipped. Used by the
- * admin console.
+ * Forced run: deliver to every onboarded user with an active subscription
+ * immediately, ignoring each user's configured delivery hour. Idempotency
+ * still holds — a user who already has a digest for the current racing day
+ * is skipped. Used by the admin console.
  */
 export async function runDigestForAllUsers(
   now: Date = new Date(),
 ): Promise<DigestRunSummary> {
   const eligible = await getDigestEligibleUsers();
-  return deliverDigests(eligible, eligible.length, now);
+  const subscribed = eligible.filter((e) =>
+    isSubscriptionActive(e.subscription?.status),
+  );
+  return deliverDigests(subscribed, eligible.length, now);
 }

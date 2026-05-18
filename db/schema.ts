@@ -489,6 +489,48 @@ export const digests = pgTable(
   ],
 );
 
+// ---------------------------------------------------------------------------
+// subscriptions — one row per user mirroring their Stripe subscription.
+//
+// Stripe is the source of truth: the `/api/stripe/webhook` handler is the
+// only writer of `status` and the period fields. The digest pipeline only
+// delivers to users whose subscription is active. Per-user data: RLS lets
+// the owner read their own row.
+// ---------------------------------------------------------------------------
+
+export const subscriptions = pgTable(
+  'subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    stripeCustomerId: text('stripe_customer_id').notNull(),
+    stripeSubscriptionId: text('stripe_subscription_id'),
+    // Stripe subscription status: 'active' | 'past_due' | 'canceled' |
+    // 'incomplete' | 'incomplete_expired' | 'trialing' | 'unpaid' | 'paused'.
+    status: text('status').notNull().default('incomplete'),
+    priceId: text('price_id'),
+    currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
+    cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    pgPolicy('subscriptions_select_own', {
+      for: 'select',
+      to: authenticatedRole,
+      using: sql`(select auth.uid()) = ${table.userId}`,
+    }),
+  ],
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type UserPreferencesRow = typeof userPreferences.$inferSelect;
 export type EmailSignupRow = typeof emailSignups.$inferSelect;
@@ -508,6 +550,8 @@ export type NewTrainerRow = typeof trainers.$inferInsert;
 export type RaceEntryRow = typeof raceEntries.$inferSelect;
 export type NewRaceEntryRow = typeof raceEntries.$inferInsert;
 export type RaceRow = typeof races.$inferSelect;
+export type SubscriptionRow = typeof subscriptions.$inferSelect;
+export type NewSubscriptionRow = typeof subscriptions.$inferInsert;
 export type NewRaceRow = typeof races.$inferInsert;
 export type DigestRow = typeof digests.$inferSelect;
 export type NewDigestRow = typeof digests.$inferInsert;
