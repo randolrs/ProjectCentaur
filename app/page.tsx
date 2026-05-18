@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { SiteFooter } from '@/app/_components/site-footer';
+import { Wordmark } from '@/app/_components/wordmark';
 
 export const metadata: Metadata = {
   title: 'Furlong — your morning races, handicapped',
@@ -17,12 +19,12 @@ function Step({
   body: string;
 }) {
   return (
-    <div className="space-y-1">
-      <div className="text-xs font-semibold tracking-wider text-neutral-500">
-        STEP {index}
+    <div className="space-y-1.5">
+      <div className="font-serif text-2xl font-semibold text-turf-bright">
+        {index}
       </div>
-      <h3 className="text-sm font-semibold text-neutral-100">{title}</h3>
-      <p className="text-sm leading-relaxed text-neutral-400">{body}</p>
+      <h3 className="text-sm font-semibold text-paper">{title}</h3>
+      <p className="text-sm leading-relaxed text-paper/60">{body}</p>
     </div>
   );
 }
@@ -37,29 +39,39 @@ function DigestItem({
   reasoning: string;
 }) {
   return (
-    <div className="border-t border-neutral-800 pt-4">
-      <div className="text-sm font-semibold text-neutral-100">{headline}</div>
-      <div className="mt-1 text-xs text-neutral-500">{meta}</div>
-      <p className="mt-2 text-sm leading-relaxed text-neutral-300">
-        {reasoning}
-      </p>
+    <div className="border-t border-ink/10 pt-4">
+      <div className="font-serif text-base font-semibold text-ink">
+        {headline}
+      </div>
+      <div className="mt-1 text-xs text-ink/50">{meta}</div>
+      <p className="mt-1.5 text-sm leading-relaxed text-ink/70">{reasoning}</p>
     </div>
   );
 }
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100">
-      <div className="mx-auto w-full max-w-2xl space-y-20 px-6 py-16">
+    <div className="min-h-screen bg-ink text-paper">
+      <header className="mx-auto flex w-full max-w-2xl items-center justify-between px-6 py-6">
+        <Wordmark className="text-paper" />
+        <Link
+          href="/login"
+          className="text-sm text-paper/60 hover:text-paper"
+        >
+          Log in
+        </Link>
+      </header>
+
+      <main className="mx-auto w-full max-w-2xl space-y-20 px-6 pb-20 pt-8">
         {/* Hero */}
         <section className="space-y-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-turf-bright">
             For US thoroughbred handicappers
           </p>
-          <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+          <h1 className="font-serif text-4xl font-semibold leading-[1.15] tracking-tight sm:text-5xl">
             Stop scanning 200 races to find the five that matter.
           </h1>
-          <p className="text-base leading-relaxed text-neutral-400">
+          <p className="text-base leading-relaxed text-paper/70">
             Furlong reads every card at the tracks you follow, every morning,
             and emails you the handful of races worth your time — with the
             angle on each. A triage tool, not a tout service.
@@ -67,30 +79,32 @@ export default function Home() {
           <div className="flex flex-wrap items-center gap-4 pt-2">
             <Link
               href="/signup"
-              className="rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-semibold text-neutral-950 hover:bg-white"
+              className="rounded-md bg-turf-bright px-5 py-2.5 text-sm font-semibold text-ink hover:opacity-90"
             >
               Get your first digest free
             </Link>
-            <span className="text-sm text-neutral-500">
+            <span className="text-sm text-paper/50">
               Then $19/mo · cancel anytime
             </span>
           </div>
         </section>
 
-        {/* Sample digest */}
+        {/* Sample digest — rendered as the artifact itself */}
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold text-neutral-300">
+          <h2 className="font-serif text-xl font-semibold">
             A morning at your tracks looks like this
           </h2>
-          <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-6">
-            <div className="text-xs uppercase tracking-wider text-neutral-500">
-              Sunday, May 17 · Your race digest
+          <div className="rounded-lg bg-paper p-7 text-ink shadow-xl shadow-black/40">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-turf">
+              <span>Sunday, May 17</span>
+              <span className="text-ink/30">·</span>
+              <span>Your race digest</span>
             </div>
-            <p className="mt-3 text-sm leading-relaxed text-neutral-300">
+            <p className="mt-3 font-serif text-base leading-relaxed text-ink/80">
               Quiet card at your tracks today — two races clear your filters,
               and one is the uncontested-lead spot you said you live for.
             </p>
-            <div className="mt-4 space-y-4">
+            <div className="mt-5 space-y-5">
               <DigestItem
                 headline="Gulfstream R7 — lone speed in a short field"
                 meta="Allowance · dirt · 7f · field of 6 · post 4:12"
@@ -106,9 +120,11 @@ export default function Home() {
         </section>
 
         {/* How it works */}
-        <section className="space-y-5">
-          <h2 className="text-lg font-semibold tracking-tight">How it works</h2>
-          <div className="grid gap-6 sm:grid-cols-3">
+        <section className="space-y-6">
+          <h2 className="font-serif text-2xl font-semibold tracking-tight">
+            How it works
+          </h2>
+          <div className="grid gap-7 sm:grid-cols-3">
             <Step
               index={1}
               title="Tell us how you play"
@@ -128,11 +144,11 @@ export default function Home() {
         </section>
 
         {/* Positioning */}
-        <section className="space-y-3 rounded-lg border border-neutral-800 bg-neutral-900 p-6">
-          <h2 className="text-lg font-semibold tracking-tight">
+        <section className="space-y-3 rounded-lg border border-paper/10 bg-paper/5 p-7">
+          <h2 className="font-serif text-2xl font-semibold tracking-tight">
             Not picks. Not hype.
           </h2>
-          <p className="text-sm leading-relaxed text-neutral-400">
+          <p className="text-sm leading-relaxed text-paper/65">
             Furlong won&apos;t tell you what to bet. It tells you which races
             deserve your attention — and says so plainly when one doesn&apos;t.
             The morning&apos;s homework, done. The decisions, still yours.
@@ -141,29 +157,25 @@ export default function Home() {
 
         {/* Pricing / CTA */}
         <section className="space-y-4 text-center">
-          <h2 className="text-2xl font-semibold tracking-tight">
+          <h2 className="font-serif text-3xl font-semibold tracking-tight">
             Your first digest is free.
           </h2>
-          <p className="text-sm leading-relaxed text-neutral-400">
+          <p className="mx-auto max-w-md text-sm leading-relaxed text-paper/65">
             Build your profile, get a digest for today&apos;s card, and decide
             for yourself. After that it&apos;s $19/month — cancel anytime.
           </p>
           <div className="flex flex-col items-center gap-3 pt-2">
             <Link
               href="/signup"
-              className="rounded-md bg-neutral-100 px-5 py-2.5 text-sm font-semibold text-neutral-950 hover:bg-white"
+              className="rounded-md bg-turf-bright px-6 py-3 text-sm font-semibold text-ink hover:opacity-90"
             >
               Get your first digest free
             </Link>
-            <Link
-              href="/login"
-              className="text-sm text-neutral-500 underline hover:text-neutral-300"
-            >
-              Already have an account? Log in
-            </Link>
           </div>
         </section>
-      </div>
-    </main>
+      </main>
+
+      <SiteFooter />
+    </div>
   );
 }
