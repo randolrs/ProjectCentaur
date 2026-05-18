@@ -77,6 +77,22 @@ function isUsMeet(meet: NaMeet): boolean {
   return /usa|united states|^us$/.test(marker);
 }
 
+// Multi-track wager pools (cross-track Pick 5/6 products) surface in the NA
+// meets feed as if they were tracks; their "races" duplicate real-track
+// cards. They are otherwise structurally identical to real meets, so this
+// is necessarily a name heuristic.
+const WAGER_POOL_MEETS: ReadonlySet<string> = new Set([
+  'sunset six',
+  'coast to coast pick 5',
+  'cross country pick 5',
+]);
+
+/** True when a meet name is a wagering pool rather than a real racetrack. */
+function isWagerPoolMeet(name: string): boolean {
+  const normalized = name.trim().toLowerCase();
+  return WAGER_POOL_MEETS.has(normalized) || /\bpick\s*\d/.test(normalized);
+}
+
 /** Build a display name from a jockey / trainer person object. */
 function personName(person: NaPerson | null | undefined): string | null {
   if (!person) return null;
@@ -204,6 +220,7 @@ class UsRegionStrategy implements RegionStrategy<RawUsRacecardData> {
         toStringOrNull(entries.track_name) ??
         toStringOrNull(meet.track_name) ??
         'Unknown';
+      if (isWagerPoolMeet(track)) continue;
       for (const race of entries.races) {
         cards.push(normalizeRace('us', track, race));
       }

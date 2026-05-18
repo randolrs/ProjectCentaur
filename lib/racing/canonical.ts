@@ -83,3 +83,55 @@ export function parseDistanceFurlongs(
 
   return Math.round(furlongs * 100) / 100;
 }
+
+// ---------------------------------------------------------------------------
+// Track canonicalization
+//
+// The racing provider names a track differently from how a handicapper picks
+// it during onboarding: the NYRA spring meet reports as "Belmont at the Big
+// A", and "Santa Anita Park" reports as "Santa Anita". The digest matches a
+// user's followed tracks against `races.track_canonical`, so ingestion must
+// collapse these provider variants onto the onboarding vocabulary (the US
+// `v1Tracks` set in lib/racing/regions.ts). A name with no known alias
+// passes through trimmed, so non-v1 tracks are still stored coherently.
+// ---------------------------------------------------------------------------
+
+// Canonical track display name -> known provider name variants (lowercased).
+// The canonical keys must stay in sync with the US `v1Tracks` vocabulary;
+// `tests/racing-ingest.test.ts` asserts this.
+const TRACK_ALIASES: Readonly<Record<string, readonly string[]>> = {
+  Saratoga: ['saratoga race course'],
+  // Belmont Park is closed for reconstruction; NYRA runs the Belmont meet at
+  // the Aqueduct facility and reports it as "Belmont at the Big A".
+  'Belmont Park': ['belmont at the big a'],
+  Aqueduct: ['aqueduct racetrack'],
+  'Churchill Downs': [],
+  Keeneland: [],
+  'Del Mar': ['del mar thoroughbred club'],
+  'Santa Anita Park': ['santa anita'],
+  'Gulfstream Park': ['gulfstream', 'gulfstream park west'],
+  'Oaklawn Park': ['oaklawn'],
+  'Fair Grounds': ['fair grounds race course'],
+  'Tampa Bay Downs': [],
+  'Kentucky Downs': [],
+};
+
+const TRACK_ALIAS_LOOKUP: ReadonlyMap<string, string> = new Map(
+  Object.entries(TRACK_ALIASES).flatMap(([canonical, aliases]) => [
+    [canonical.toLowerCase(), canonical] as const,
+    ...aliases.map((alias) => [alias, canonical] as const),
+  ]),
+);
+
+/** Canonical track display names covered by the v1 onboarding vocabulary. */
+export const CANONICAL_TRACKS: readonly string[] = Object.keys(TRACK_ALIASES);
+
+/**
+ * Collapse a provider track name onto the onboarding track vocabulary.
+ * Unknown tracks pass through trimmed; blank input becomes "Unknown".
+ */
+export function canonicalTrack(raw: string | null | undefined): string {
+  const trimmed = (raw ?? '').trim();
+  if (!trimmed) return 'Unknown';
+  return TRACK_ALIAS_LOOKUP.get(trimmed.toLowerCase()) ?? trimmed;
+}

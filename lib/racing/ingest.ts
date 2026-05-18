@@ -5,6 +5,7 @@ import { RacingApiClient } from './client';
 import {
   canonicalRaceClass,
   canonicalSurface,
+  canonicalTrack,
   parseDistanceFurlongs,
 } from './canonical';
 import { usRegionStrategy } from './regions';
@@ -33,6 +34,7 @@ export function racecardToRow(card: Racecard, date: string): NewRaceRow {
     region: card.region,
     raceDate: date,
     track: card.track,
+    trackCanonical: canonicalTrack(card.track),
     raceNumber: card.raceNumber,
     postTime: card.postTime,
     postTimestamp: card.postTimestamp,
@@ -71,6 +73,7 @@ const CONFLICT_UPDATE = {
   region: sql`excluded.region`,
   raceDate: sql`excluded.race_date`,
   track: sql`excluded.track`,
+  trackCanonical: sql`excluded.track_canonical`,
   raceNumber: sql`excluded.race_number`,
   postTime: sql`excluded.post_time`,
   postTimestamp: sql`excluded.post_timestamp`,

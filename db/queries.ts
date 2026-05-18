@@ -68,7 +68,7 @@ export async function getRacesForTracks(
       and(
         eq(races.raceDate, date),
         eq(races.region, region),
-        inArray(races.track, tracks),
+        inArray(races.trackCanonical, tracks),
       ),
     )
     .orderBy(asc(races.postTimestamp), asc(races.track), asc(races.raceNumber));

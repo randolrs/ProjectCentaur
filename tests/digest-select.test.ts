@@ -15,6 +15,7 @@ function race(overrides: Partial<RaceRow>): RaceRow {
     region: 'us',
     raceDate: '2026-05-17',
     track: 'Aqueduct',
+    trackCanonical: 'Aqueduct',
     raceNumber: 1,
     postTime: '1:00 PM',
     postTimestamp: 1_000,
