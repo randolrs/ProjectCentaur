@@ -1,11 +1,17 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, eq, inArray } from 'drizzle-orm';
 import { getDb } from './index';
 import type {
   HandicapperProfileRow,
   UserPreferencesRow,
   UserRow,
 } from './schema';
-import { handicapperProfile, races, userPreferences, users } from './schema';
+import {
+  handicapperProfile,
+  raceEntries,
+  races,
+  userPreferences,
+  users,
+} from './schema';
 
 /** The user's deterministic onboarding preferences, or null if not onboarded. */
 export async function getUserPreferences(userId: string) {
@@ -72,6 +78,43 @@ export async function getRacesForTracks(
       ),
     )
     .orderBy(asc(races.postTimestamp), asc(races.track), asc(races.raceNumber));
+}
+
+export interface IngestDaySummary {
+  date: string;
+  raceCount: number;
+  entryCount: number;
+  /** Per-track race counts, ordered by canonical track name. */
+  tracks: { track: string; races: number }[];
+}
+
+/** Summarize what has been ingested for a racing day, broken down by track. */
+export async function getIngestSummaryForDate(
+  date: string,
+): Promise<IngestDaySummary> {
+  const db = getDb();
+  const trackRows = await db
+    .select({ track: races.trackCanonical, races: count() })
+    .from(races)
+    .where(eq(races.raceDate, date))
+    .groupBy(races.trackCanonical)
+    .orderBy(asc(races.trackCanonical));
+  const [entryRow] = await db
+    .select({ n: count() })
+    .from(raceEntries)
+    .innerJoin(races, eq(raceEntries.raceId, races.id))
+    .where(eq(races.raceDate, date));
+
+  const tracks = trackRows.map((row) => ({
+    track: row.track,
+    races: Number(row.races),
+  }));
+  return {
+    date,
+    raceCount: tracks.reduce((sum, t) => sum + t.races, 0),
+    entryCount: Number(entryRow?.n ?? 0),
+    tracks,
+  };
 }
 
 export interface DigestEligibleUser {

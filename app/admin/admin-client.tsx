@@ -3,8 +3,23 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import type { DigestOutcome, DigestRunSummary } from '@/lib/digest/pipeline';
-import { triggerDigest, triggerIngest } from './actions';
-import type { DigestActionResult, IngestActionResult } from './types';
+import {
+  getIngestedDay,
+  triggerDigest,
+  triggerDigestForEmail,
+  triggerIngest,
+} from './actions';
+import type {
+  DigestActionResult,
+  EmailDigestActionResult,
+  IngestActionResult,
+  IngestDayActionResult,
+} from './types';
+
+/** Today's date as YYYY-MM-DD for the date picker default. */
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 const OUTCOME_STYLE: Record<DigestOutcome, string> = {
   sent: 'text-emerald-400',
@@ -81,6 +96,11 @@ export function AdminConsole({ email }: { email: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [ingest, setIngest] = useState<IngestActionResult | null>(null);
   const [digest, setDigest] = useState<DigestActionResult | null>(null);
+  const [day, setDay] = useState(todayIso());
+  const [dayResult, setDayResult] = useState<IngestDayActionResult | null>(null);
+  const [targetEmail, setTargetEmail] = useState('');
+  const [emailResult, setEmailResult] =
+    useState<EmailDigestActionResult | null>(null);
 
   async function runIngest() {
     setBusy('ingest');
@@ -91,6 +111,18 @@ export function AdminConsole({ email }: { email: string }) {
   async function runDigest(force: boolean) {
     setBusy(force ? 'digest-force' : 'digest-hourly');
     setDigest(await triggerDigest(force));
+    setBusy(null);
+  }
+
+  async function lookUpDay() {
+    setBusy('day');
+    setDayResult(await getIngestedDay(day));
+    setBusy(null);
+  }
+
+  async function sendToEmail() {
+    setBusy('email');
+    setEmailResult(await triggerDigestForEmail(targetEmail));
     setBusy(null);
   }
 
@@ -175,6 +207,116 @@ export function AdminConsole({ email }: { email: string }) {
               <DigestSummary summary={digest.data} />
             ) : (
               <p className="text-sm text-red-400">{digest.error}</p>
+            ))}
+        </section>
+
+        <section className="space-y-3">
+          <div className="space-y-1">
+            <h2 className="text-sm font-semibold">Ingested data by day</h2>
+            <p className="text-sm text-neutral-400">
+              Inspect the races and entries stored for a racing day, broken
+              down by track.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="date"
+              value={day}
+              onChange={(event) => setDay(event.target.value)}
+              disabled={locked}
+              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm disabled:opacity-50"
+            />
+            <Button onClick={lookUpDay} disabled={locked} busy={busy === 'day'}>
+              Look up
+            </Button>
+          </div>
+          {dayResult &&
+            (dayResult.ok ? (
+              dayResult.data.raceCount === 0 ? (
+                <p className="text-sm text-amber-400">
+                  Nothing ingested for {dayResult.data.date}.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-emerald-400">
+                    {dayResult.data.raceCount} races ·{' '}
+                    {dayResult.data.entryCount} entries across{' '}
+                    {dayResult.data.tracks.length} tracks for{' '}
+                    {dayResult.data.date}.
+                  </p>
+                  <ul className="divide-y divide-neutral-800 rounded-md border border-neutral-800 text-sm">
+                    {dayResult.data.tracks.map((track) => (
+                      <li
+                        key={track.track}
+                        className="flex justify-between px-3 py-2"
+                      >
+                        <span className="text-neutral-100">{track.track}</span>
+                        <span className="tabular-nums text-neutral-500">
+                          {track.races} race{track.races === 1 ? '' : 's'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            ) : (
+              <p className="text-sm text-red-400">{dayResult.error}</p>
+            ))}
+        </section>
+
+        <section className="space-y-3">
+          <div className="space-y-1">
+            <h2 className="text-sm font-semibold">Send a digest to one email</h2>
+            <p className="text-sm text-neutral-400">
+              Build and deliver the digest for a single onboarded user, for
+              their current racing day. This always sends — even if that user
+              already received a digest today.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={targetEmail}
+              onChange={(event) => setTargetEmail(event.target.value)}
+              placeholder="user@example.com"
+              disabled={locked}
+              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm placeholder:text-neutral-600 disabled:opacity-50"
+            />
+            <Button
+              onClick={sendToEmail}
+              disabled={locked}
+              busy={busy === 'email'}
+            >
+              Send digest
+            </Button>
+          </div>
+          {emailResult &&
+            (emailResult.ok ? (
+              <div className="space-y-1 text-sm">
+                <div className="flex flex-wrap items-center gap-x-3">
+                  <span className="text-neutral-100">
+                    {emailResult.data.email}
+                  </span>
+                  <span className={OUTCOME_STYLE[emailResult.data.outcome]}>
+                    {emailResult.data.outcome}
+                  </span>
+                  <span className="text-neutral-500">
+                    {emailResult.data.raceCount} race
+                    {emailResult.data.raceCount === 1 ? '' : 's'} · $
+                    {emailResult.data.costUsd.toFixed(4)}
+                    {emailResult.data.generatedBy
+                      ? ` · ${emailResult.data.generatedBy}`
+                      : ''}
+                  </span>
+                </div>
+                {emailResult.data.error && (
+                  <p className="text-xs text-red-400">
+                    {emailResult.data.error}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-red-400">{emailResult.error}</p>
             ))}
         </section>
       </div>
