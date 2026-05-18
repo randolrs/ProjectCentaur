@@ -135,3 +135,12 @@ export function canonicalTrack(raw: string | null | undefined): string {
   if (!trimmed) return 'Unknown';
   return TRACK_ALIAS_LOOKUP.get(trimmed.toLowerCase()) ?? trimmed;
 }
+
+/**
+ * Normalize a horse / person name to a stable lookup key — lower-cased and
+ * whitespace-collapsed. The provider gives horses no id and sometimes omits
+ * person ids, so ingestion synthesizes natural keys from normalized names.
+ */
+export function normalizeNameKey(raw: string | null | undefined): string {
+  return (raw ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}

@@ -9,15 +9,18 @@ import {
   parseDistanceFurlongs,
 } from '@/lib/racing/canonical';
 import {
+  horseNaturalKey,
+  personNaturalKey,
   racecardKey,
-  racecardToRow,
-  racecardsToRows,
+  racecardToRaceRow,
 } from '@/lib/racing/ingest';
 import { usRegionStrategy } from '@/lib/racing/regions';
 import {
   naEntriesResponseSchema,
+  type Person,
   type Racecard,
   type RawUsRacecardData,
+  type Runner,
 } from '@/lib/racing/types';
 
 function fixture(name: string): unknown {
@@ -32,8 +35,18 @@ const cards: Racecard[] = (() => {
   const raw: RawUsRacecardData = {
     date: '2026-05-17',
     meets: [
-      { meet: { meet_id: 'AQU', track_name: 'Aqueduct' }, entries: aqueduct },
-      { meet: { meet_id: 'GP', track_name: 'Gulfstream Park' }, entries: gulfstream },
+      {
+        meet: { meet_id: 'AQU', track_name: 'Aqueduct', date: '2026-05-17' },
+        entries: aqueduct,
+      },
+      {
+        meet: {
+          meet_id: 'GP',
+          track_name: 'Gulfstream Park',
+          date: '2026-05-17',
+        },
+        entries: gulfstream,
+      },
     ],
   };
   return usRegionStrategy.raceNormalization(raw);
@@ -106,21 +119,20 @@ describe('canonicalTrack', () => {
 });
 
 describe('racecardKey', () => {
-  it('builds a deterministic region|date|track|race key', () => {
-    expect(racecardKey('2026-05-17', cards[0]!)).toBe('us|2026-05-17|Aqueduct|1');
+  it('builds a deterministic region|date|track|race|day key', () => {
+    expect(racecardKey(cards[0]!)).toMatch(/^us\|2026-05-17\|Aqueduct\|1\|/);
   });
 
   it('is stable across repeated calls for the same card', () => {
-    expect(racecardKey('2026-05-17', cards[2]!)).toBe(
-      racecardKey('2026-05-17', cards[2]!),
-    );
+    expect(racecardKey(cards[2]!)).toBe(racecardKey(cards[2]!));
   });
 });
 
-describe('racecardToRow', () => {
-  it('derives canonical structured columns from the racecard', () => {
-    const row = racecardToRow(cards[0]!, '2026-05-17');
-    expect(row.key).toBe('us|2026-05-17|Aqueduct|1');
+describe('racecardToRaceRow', () => {
+  it('derives canonical structured columns and links the meet', () => {
+    const card = cards[0]!;
+    const row = racecardToRaceRow(card, racecardKey(card), 'meet-1');
+    expect(row.meetId).toBe('meet-1');
     expect(row.source).toBe('theracingapi');
     expect(row.track).toBe('Aqueduct');
     expect(row.trackCanonical).toBe('Aqueduct');
@@ -135,8 +147,8 @@ describe('racecardToRow', () => {
   });
 
   it('canonicalises a synthetic-surface maiden claimer', () => {
-    const gulfstreamMaiden = cards[4]!;
-    const row = racecardToRow(gulfstreamMaiden, '2026-05-17');
+    const card = cards[4]!;
+    const row = racecardToRaceRow(card, racecardKey(card), 'meet-1');
     expect(row.track).toBe('Gulfstream Park');
     expect(row.trackCanonical).toBe('Gulfstream Park');
     expect(row.surfaceCanonical).toBe('synthetic');
@@ -145,41 +157,52 @@ describe('racecardToRow', () => {
   });
 
   it('preserves the raw provider payload for raw_data', () => {
-    const row = racecardToRow(cards[2]!, '2026-05-17');
+    const card = cards[2]!;
+    const row = racecardToRaceRow(card, racecardKey(card), 'meet-1');
     expect(row.raceClassCanonical).toBe('stakes');
     expect(row.rawData).toMatchObject({ race_class: 'STAKES', grade: '2' });
   });
 });
 
-describe('racecardsToRows', () => {
-  it('produces one row per racecard', () => {
-    expect(racecardsToRows(cards, '2026-05-17')).toHaveLength(5);
+describe('horseNaturalKey', () => {
+  it('combines the normalized name, sire, and dam', () => {
+    const runner: Runner = {
+      programNumber: '1',
+      postPosition: '1',
+      horseName: 'Al Amjaad',
+      sireName: "Medaglia d'Oro",
+      damName: 'Mahasen',
+      jockey: null,
+      trainer: null,
+      morningLineOdds: null,
+      weight: null,
+      medication: null,
+      equipment: null,
+      scratched: false,
+    };
+    expect(horseNaturalKey(runner)).toBe("al amjaad|medaglia d'oro|mahasen");
+  });
+});
+
+describe('personNaturalKey', () => {
+  const person = (overrides: Partial<Person>): Person => ({
+    providerId: null,
+    name: 'Jose Ortiz',
+    firstName: null,
+    lastName: null,
+    alias: null,
+    ...overrides,
   });
 
-  it('de-duplicates rows that collide on the natural key (last write wins)', () => {
-    const base: Racecard = {
-      region: 'us',
-      track: 'Aqueduct',
-      raceNumber: 1,
-      postTime: null,
-      postTimestamp: null,
-      conditions: null,
-      surface: 'Dirt',
-      distance: '6 Furlongs',
-      raceClass: 'CLAIMING',
-      purse: null,
-      fieldSize: 0,
-      runners: [],
-      raw: {},
-    };
-    const rows = racecardsToRows(
-      [
-        { ...base, purse: 10000 },
-        { ...base, purse: 20000 },
-      ],
-      '2026-05-17',
+  it('prefers the provider id when present', () => {
+    expect(personNaturalKey(person({ providerId: 'jky_na_441324' }))).toBe(
+      'jky_na_441324',
     );
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.purse).toBe(20000);
+  });
+
+  it('falls back to a normalized-name key', () => {
+    expect(personNaturalKey(person({ name: 'Joe  Sharp' }))).toBe(
+      'name:joe sharp',
+    );
   });
 });

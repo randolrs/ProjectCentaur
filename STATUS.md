@@ -1,5 +1,41 @@
 # Project Status
 
+## M5 — Normalized racing data model
+
+**State:** Code-complete; production build, typecheck, and unit suites pass
+locally. Migration `0006_m6_normalized_racing.sql` is applied to the hosted
+Supabase project. The migration wipes the `races` table (stale ingest data) to
+add a non-null `meet_id`, so the racing tables are empty until ingestion is
+re-run from `/admin`.
+
+_Last updated: 2026-05-18 · branch `claude/apply-m1-migration-KNaf6`_
+
+### Shipped
+
+- Normalized the flat `races` table into a hierarchy: `tracks` → `meets` →
+  `races` → `race_entries`, with `horses` / `jockeys` / `trainers` as
+  dimension entities the entries reference.
+- Ingestion upserts every entity on its natural key — provider ids for
+  meets/jockeys/trainers, synthesized keys for tracks (canonical name) and
+  horses (name + sire + dam) — in one dependency-ordered transaction.
+- `races` keeps its denormalized digest-facing columns (`race_date`,
+  `track_canonical`, canonical surface/class) so the digest query is
+  unchanged; runner detail now also lives in `race_entries`.
+
+### Decisions
+
+- **Owners are not modeled.** The provider's entries feed carries no owner
+  data; revisit if a source becomes available.
+- **Horse identity** is `normalize(name) | sire | dam` — the feed gives
+  horses no id, and North American horse names are registered-unique.
+- The migration wipes `races` rather than backfilling a synthetic meet for
+  stale rows — the data is regenerable by re-ingesting.
+
+### Deferred — founder action required
+
+- **Re-ingest.** The racing tables are empty post-migration; run "Ingest
+  today's races" from `/admin` to repopulate the normalized hierarchy.
+
 ## M4 — Digest pipeline
 
 **State:** Code-complete; production build, typecheck, and the unit test

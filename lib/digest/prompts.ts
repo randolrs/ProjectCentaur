@@ -38,7 +38,7 @@ function runnerLine(runner: Runner): string {
   const number = runner.programNumber ? `${runner.programNumber}. ` : '';
   const name = runner.horseName ?? 'Unknown';
   const odds = runner.morningLineOdds ? ` (ML ${runner.morningLineOdds})` : '';
-  const trainer = runner.trainer ? ` — trn ${runner.trainer}` : '';
+  const trainer = runner.trainer ? ` — trn ${runner.trainer.name}` : '';
   return `    ${number}${name}${odds}${trainer}`;
 }
 

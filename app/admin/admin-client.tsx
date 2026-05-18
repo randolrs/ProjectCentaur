@@ -126,10 +126,18 @@ export function AdminConsole({ email }: { email: string }) {
           </Button>
           {ingest &&
             (ingest.ok ? (
-              <p className="text-sm text-emerald-400">
-                Ingested {ingest.data.ingested} race
-                {ingest.data.ingested === 1 ? '' : 's'} for {ingest.data.date}.
-              </p>
+              <div className="space-y-1 text-sm">
+                <p className="text-emerald-400">
+                  Ingested {ingest.data.races} race
+                  {ingest.data.races === 1 ? '' : 's'} for {ingest.data.date}.
+                </p>
+                <p className="text-neutral-500">
+                  {ingest.data.tracks} tracks · {ingest.data.meets} meets ·{' '}
+                  {ingest.data.entries} entries · {ingest.data.horses} horses ·{' '}
+                  {ingest.data.jockeys} jockeys · {ingest.data.trainers}{' '}
+                  trainers
+                </p>
+              </div>
             ) : (
               <p className="text-sm text-red-400">{ingest.error}</p>
             ))}

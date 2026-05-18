@@ -75,16 +75,16 @@ describe('US racecard normalization', () => {
     expect(race1.purse).toBe(80000);
   });
 
-  it('flattens jockey and trainer objects into display names', () => {
+  it('flattens jockey and trainer objects into Person records', () => {
     const felonious = cards[0]!.runners[0]!;
     expect(felonious.horseName).toBe('Felonious');
-    expect(felonious.jockey).toBe('Ricardo Santana, Jr.');
-    expect(felonious.trainer).toBe('Todd A. Pletcher');
+    expect(felonious.jockey?.name).toBe('Ricardo Santana, Jr.');
+    expect(felonious.trainer?.name).toBe('Todd A. Pletcher');
     expect(felonious.morningLineOdds).toBe('5/2');
   });
 
   it('falls back to the alias when a person has no name parts', () => {
-    expect(cards[0]!.runners[1]!.jockey).toBe('Ortiz I Jr');
+    expect(cards[0]!.runners[1]!.jockey?.name).toBe('Ortiz I Jr');
   });
 
   it('tolerates a null jockey', () => {
