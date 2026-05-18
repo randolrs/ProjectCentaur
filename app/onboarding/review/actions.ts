@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { getHandicapperProfile } from '@/db/queries';
+import { triggerImmediateDigest } from '@/lib/digest/pipeline';
 import { updateProfileFields } from '@/lib/onboarding/persistence';
 import { HandicapperProfileSchema } from '@/lib/onboarding/schema';
 import { createClient } from '@/lib/supabase/server';
@@ -24,8 +25,18 @@ function asCommaList(value: FormDataEntryValue | null): string[] {
     .filter(Boolean);
 }
 
-/** "Looks right" — onboarding is already marked complete; move to the dashboard. */
+/**
+ * "Looks right" — onboarding is complete. Send the user their first digest
+ * immediately (best-effort), then move to the dashboard.
+ */
 export async function confirmProfile(): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    await triggerImmediateDigest(user.id);
+  }
   redirect('/dashboard');
 }
 

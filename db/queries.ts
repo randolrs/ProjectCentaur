@@ -12,6 +12,7 @@ import type {
   UserRow,
 } from './schema';
 import {
+  digests,
   handicapperProfile,
   horses,
   jockeys,
@@ -167,6 +168,38 @@ export async function getSubscription(
     .where(eq(subscriptions.userId, userId))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/** One onboarded user joined to their subscription, or null. */
+export async function getDigestEligibleUser(
+  userId: string,
+): Promise<DigestEligibleUser | null> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      user: users,
+      prefs: userPreferences,
+      profile: handicapperProfile,
+      subscription: subscriptions,
+    })
+    .from(users)
+    .innerJoin(userPreferences, eq(userPreferences.userId, users.id))
+    .innerJoin(handicapperProfile, eq(handicapperProfile.userId, users.id))
+    .leftJoin(subscriptions, eq(subscriptions.userId, users.id))
+    .where(eq(users.id, userId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** How many digests each user has actually been sent, keyed by user id. */
+export async function getSentDigestCountByUser(): Promise<Map<string, number>> {
+  const db = getDb();
+  const rows = await db
+    .select({ userId: digests.userId, sent: count() })
+    .from(digests)
+    .where(eq(digests.status, 'sent'))
+    .groupBy(digests.userId);
+  return new Map(rows.map((row) => [row.userId, Number(row.sent)]));
 }
 
 // ---------------------------------------------------------------------------

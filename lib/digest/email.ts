@@ -70,14 +70,38 @@ function itemText(item: RenderedDigestItem): string {
   ].join('\n');
 }
 
+/** Optional extras when rendering the email. */
+export interface RenderDigestOptions {
+  /** When set, append a "subscribe to keep these" call to action. */
+  upgradeUrl?: string;
+}
+
 /** Render a finished digest into a deliverable email. */
 export function renderDigestEmail(
   digest: RenderedDigest,
   raceDate: string,
+  options: RenderDigestOptions = {},
 ): RenderedEmail {
   const count = digest.items.length;
   const noun = count === 1 ? 'race' : 'races';
   const subject = `Your race digest — ${displayDate(raceDate)} (${count} ${noun})`;
+
+  const upgradeUrl = options.upgradeUrl;
+  const upgradeHtml = upgradeUrl
+    ? `<tr><td style="padding:8px 32px 0 32px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr><td style="background:#111111;border-radius:8px;padding:22px 24px;text-align:center;">
+              <div style="font-size:15px;font-weight:600;color:#ffffff;">This digest was free.</div>
+              <div style="font-size:13px;line-height:1.5;color:#aaaaaa;margin-top:6px;">
+                Keep getting the races worth your morning, every day.
+              </div>
+              <a href="${escapeHtml(upgradeUrl)}" style="display:inline-block;margin-top:14px;background:#ffffff;color:#111111;font-size:14px;font-weight:600;text-decoration:none;padding:10px 22px;border-radius:6px;">
+                Subscribe — $19/mo
+              </a>
+            </td></tr>
+          </table>
+        </td></tr>`
+    : '';
 
   const html = `<!doctype html>
 <html><body style="margin:0;padding:0;background:#f4f4f4;">
@@ -98,7 +122,8 @@ export function renderDigestEmail(
             ${digest.items.map(itemHtml).join('')}
           </table>
         </td></tr>
-        <tr><td style="padding:0 32px 32px 32px;">
+        ${upgradeHtml}
+        <tr><td style="padding:24px 32px 32px 32px;">
           <p style="font-size:12px;color:#aaaaaa;border-top:1px solid #e5e5e5;padding-top:16px;margin:0;">
             These races match the tracks and preferences from your handicapping profile.
           </p>
@@ -115,6 +140,14 @@ export function renderDigestEmail(
     '',
     digest.items.map(itemText).join('\n\n'),
     '',
+    ...(upgradeUrl
+      ? [
+          '—',
+          'This digest was free. Keep getting your morning races for $19/mo:',
+          upgradeUrl,
+          '',
+        ]
+      : []),
     '—',
     'These races match the tracks and preferences from your handicapping profile.',
   ].join('\n');

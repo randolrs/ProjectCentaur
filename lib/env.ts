@@ -86,3 +86,8 @@ export function getStripePriceId(): string {
 export function getStripePublishableKey(): string {
   return requireEnv('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY');
 }
+
+/** Canonical site URL, used for absolute links in emails. */
+export function getSiteUrl(): string {
+  return process.env.NEXT_PUBLIC_SITE_URL || 'https://furlong.co';
+}
