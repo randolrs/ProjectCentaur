@@ -1,16 +1,24 @@
-import { and, asc, count, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, type SQL } from 'drizzle-orm';
 import { getDb } from './index';
 import type {
   HandicapperProfileRow,
+  HorseRow,
+  JockeyRow,
+  RaceEntryRow,
+  RaceRow,
   SubscriptionRow,
+  TrainerRow,
   UserPreferencesRow,
   UserRow,
 } from './schema';
 import {
   handicapperProfile,
+  horses,
+  jockeys,
   raceEntries,
   races,
   subscriptions,
+  trainers,
   userPreferences,
   users,
 } from './schema';
@@ -159,4 +167,130 @@ export async function getSubscription(
     .where(eq(subscriptions.userId, userId))
     .limit(1);
   return rows[0] ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Admin data explorer — read-only drill-down across the normalized racing
+// tables: races -> race_entries -> horses / jockeys / trainers, and back.
+// ---------------------------------------------------------------------------
+
+export interface RaceEntryDetail {
+  entry: RaceEntryRow;
+  horse: HorseRow;
+  jockey: JockeyRow | null;
+  trainer: TrainerRow | null;
+}
+
+/** A race with its full field of entries. */
+export async function getRaceWithEntries(
+  raceId: string,
+): Promise<{ race: RaceRow; entries: RaceEntryDetail[] } | null> {
+  const db = getDb();
+  const raceRows = await db
+    .select()
+    .from(races)
+    .where(eq(races.id, raceId))
+    .limit(1);
+  const race = raceRows[0];
+  if (!race) return null;
+
+  const entries = await db
+    .select({
+      entry: raceEntries,
+      horse: horses,
+      jockey: jockeys,
+      trainer: trainers,
+    })
+    .from(raceEntries)
+    .innerJoin(horses, eq(horses.id, raceEntries.horseId))
+    .leftJoin(jockeys, eq(jockeys.id, raceEntries.jockeyId))
+    .leftJoin(trainers, eq(trainers.id, raceEntries.trainerId))
+    .where(eq(raceEntries.raceId, raceId))
+    .orderBy(asc(raceEntries.programNumber));
+
+  return { race, entries };
+}
+
+/** One race a horse / jockey / trainer was involved in. */
+export interface RaceEntryAppearance {
+  entry: RaceEntryRow;
+  race: RaceRow;
+  horse: HorseRow;
+  jockey: JockeyRow | null;
+  trainer: TrainerRow | null;
+}
+
+/** Load every race entry matching `condition`, newest racing day first. */
+async function loadAppearances(condition: SQL): Promise<RaceEntryAppearance[]> {
+  const db = getDb();
+  return db
+    .select({
+      entry: raceEntries,
+      race: races,
+      horse: horses,
+      jockey: jockeys,
+      trainer: trainers,
+    })
+    .from(raceEntries)
+    .innerJoin(races, eq(races.id, raceEntries.raceId))
+    .innerJoin(horses, eq(horses.id, raceEntries.horseId))
+    .leftJoin(jockeys, eq(jockeys.id, raceEntries.jockeyId))
+    .leftJoin(trainers, eq(trainers.id, raceEntries.trainerId))
+    .where(condition)
+    .orderBy(
+      desc(races.raceDate),
+      asc(races.trackCanonical),
+      asc(races.raceNumber),
+    );
+}
+
+/** A horse and every race it has been entered in. */
+export async function getHorseWithEntries(
+  horseId: string,
+): Promise<{ horse: HorseRow; appearances: RaceEntryAppearance[] } | null> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(horses)
+    .where(eq(horses.id, horseId))
+    .limit(1);
+  const horse = rows[0];
+  if (!horse) return null;
+  return { horse, appearances: await loadAppearances(eq(raceEntries.horseId, horseId)) };
+}
+
+/** A jockey and every mount they have been booked on. */
+export async function getJockeyWithEntries(
+  jockeyId: string,
+): Promise<{ jockey: JockeyRow; appearances: RaceEntryAppearance[] } | null> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(jockeys)
+    .where(eq(jockeys.id, jockeyId))
+    .limit(1);
+  const jockey = rows[0];
+  if (!jockey) return null;
+  return {
+    jockey,
+    appearances: await loadAppearances(eq(raceEntries.jockeyId, jockeyId)),
+  };
+}
+
+/** A trainer and every runner they have started. */
+export async function getTrainerWithEntries(
+  trainerId: string,
+): Promise<{ trainer: TrainerRow; appearances: RaceEntryAppearance[] } | null> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(trainers)
+    .where(eq(trainers.id, trainerId))
+    .limit(1);
+  const trainer = rows[0];
+  if (!trainer) return null;
+  return {
+    trainer,
+    appearances: await loadAppearances(eq(raceEntries.trainerId, trainerId)),
+  };
 }

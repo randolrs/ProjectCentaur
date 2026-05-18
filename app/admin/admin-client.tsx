@@ -136,12 +136,20 @@ export function AdminConsole({ email }: { email: string }) {
             <h1 className="text-xl font-semibold tracking-tight">Admin console</h1>
             <p className="text-sm text-neutral-400">{email}</p>
           </div>
-          <Link
-            href="/dashboard"
-            className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:border-neutral-400"
-          >
-            Dashboard
-          </Link>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href="/admin/races"
+              className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:border-neutral-400"
+            >
+              Browse data
+            </Link>
+            <Link
+              href="/dashboard"
+              className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:border-neutral-400"
+            >
+              Dashboard
+            </Link>
+          </div>
         </header>
 
         <section className="space-y-3">
