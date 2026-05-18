@@ -14,6 +14,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
+    "@stripe/react-stripe-js": "^6.3.0",
+    "@stripe/stripe-js": "^9.5.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
     "dotenv": "^17.4.2",
@@ -22,6 +24,7 @@
     "postgres": "^3.4.9",
     "react": "^19.0.6",
     "react-dom": "^19.0.6",
+    "stripe": "^22.1.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
