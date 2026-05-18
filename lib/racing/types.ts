@@ -119,12 +119,28 @@ export type NaEntriesResponse = z.infer<typeof naEntriesResponseSchema>;
 // boundary — `RegionStrategy.raceNormalization` is the only translation point.
 // ---------------------------------------------------------------------------
 
+/** A jockey or trainer. `providerId` is the feed's stable id when present. */
+export interface Person {
+  providerId: string | null;
+  /** Display name, assembled from the provider's name parts. */
+  name: string;
+  firstName: string | null;
+  lastName: string | null;
+  alias: string | null;
+}
+
 export interface Runner {
   programNumber: string | null;
+  postPosition: string | null;
   horseName: string | null;
-  jockey: string | null;
-  trainer: string | null;
+  sireName: string | null;
+  damName: string | null;
+  jockey: Person | null;
+  trainer: Person | null;
   morningLineOdds: string | null;
+  weight: string | null;
+  medication: string | null;
+  equipment: string | null;
   /** True when the entry has been scratched from the race. */
   scratched: boolean;
 }
@@ -132,8 +148,18 @@ export interface Runner {
 export interface Racecard {
   /** Region this card belongs to. Always 'us' in v1. */
   region: Region;
+  /** Provider meet id — the meet this race belongs to. */
+  providerMeetId: string;
+  /** Provider track id, when the feed supplies it. */
+  providerTrackId: string | null;
   /** Track / course display name as returned by the data provider. */
   track: string;
+  /** ISO country marker for the meet, when the feed supplies it. */
+  country: string | null;
+  /** Racing day this card belongs to, YYYY-MM-DD. */
+  raceDate: string;
+  /** Provider day/evening card marker (e.g. "D" / "E"). */
+  dayEvening: string | null;
   /** Race number within the day's card, or null if the provider omits it. */
   raceNumber: number | null;
   /** Scheduled post time in the provider's display form (e.g. "12:40 PM"). */

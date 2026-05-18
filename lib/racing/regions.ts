@@ -4,6 +4,7 @@ import type {
   NaPerson,
   NaRace,
   NaRunner,
+  Person,
   Racecard,
   RawUsRacecardData,
   Region,
@@ -94,8 +95,7 @@ function isWagerPoolMeet(name: string): boolean {
 }
 
 /** Build a display name from a jockey / trainer person object. */
-function personName(person: NaPerson | null | undefined): string | null {
-  if (!person) return null;
+function personName(person: NaPerson): string | null {
   const full = [person.first_name, person.middle_name, person.last_name]
     .map((part) => part?.trim())
     .filter((part): part is string => Boolean(part))
@@ -103,15 +103,35 @@ function personName(person: NaPerson | null | undefined): string | null {
   return toStringOrNull(full) ?? toStringOrNull(person.alias);
 }
 
+/** Normalize a jockey / trainer object, or null when it has no usable name. */
+function normalizePerson(person: NaPerson | null | undefined): Person | null {
+  if (!person) return null;
+  const name = personName(person);
+  if (!name) return null;
+  return {
+    providerId: toStringOrNull(person.id),
+    name,
+    firstName: toStringOrNull(person.first_name),
+    lastName: toStringOrNull(person.last_name),
+    alias: toStringOrNull(person.alias),
+  };
+}
+
 function normalizeRunner(runner: NaRunner): Runner {
   // `scratch_indicator` is "N" for a live entry; anything else means scratched.
   const indicator = (runner.scratch_indicator ?? '').trim().toUpperCase();
   return {
     programNumber: toStringOrNull(runner.program_number ?? runner.post_pos),
+    postPosition: toStringOrNull(runner.post_pos),
     horseName: toStringOrNull(runner.horse_name),
-    jockey: personName(runner.jockey),
-    trainer: personName(runner.trainer),
+    sireName: toStringOrNull(runner.sire_name),
+    damName: toStringOrNull(runner.dam_name),
+    jockey: normalizePerson(runner.jockey),
+    trainer: normalizePerson(runner.trainer),
     morningLineOdds: toStringOrNull(runner.morning_line_odds),
+    weight: toStringOrNull(runner.weight),
+    medication: toStringOrNull(runner.medication),
+    equipment: toStringOrNull(runner.equipment),
     scratched: indicator !== '' && indicator !== 'N',
   };
 }
@@ -128,11 +148,26 @@ function buildConditions(race: NaRace): string | null {
   return toStringOrNull(restrictions.join(' · ')) ?? toStringOrNull(race.race_name);
 }
 
-function normalizeRace(region: Region, track: string, race: NaRace): Racecard {
+/** Identity and shared fields of the meet a race belongs to. */
+interface MeetContext {
+  region: Region;
+  providerMeetId: string;
+  providerTrackId: string | null;
+  track: string;
+  country: string | null;
+  raceDate: string;
+}
+
+function normalizeRace(meet: MeetContext, race: NaRace): Racecard {
   const runners = race.runners.map(normalizeRunner);
   return {
-    region,
-    track,
+    region: meet.region,
+    providerMeetId: meet.providerMeetId,
+    providerTrackId: meet.providerTrackId,
+    track: meet.track,
+    country: meet.country,
+    raceDate: meet.raceDate,
+    dayEvening: toStringOrNull(race.race_key?.day_evening),
     raceNumber: toNumber(race.race_key?.race_number),
     postTime: toStringOrNull(race.post_time),
     postTimestamp: toNumber(race.post_time_long),
@@ -221,8 +256,17 @@ class UsRegionStrategy implements RegionStrategy<RawUsRacecardData> {
         toStringOrNull(meet.track_name) ??
         'Unknown';
       if (isWagerPoolMeet(track)) continue;
+      const context: MeetContext = {
+        region: 'us',
+        providerMeetId: meet.meet_id,
+        providerTrackId:
+          toStringOrNull(entries.track_id) ?? toStringOrNull(meet.track_id),
+        track,
+        country: toStringOrNull(entries.country) ?? toStringOrNull(meet.country),
+        raceDate: toStringOrNull(meet.date) ?? toStringOrNull(entries.date) ?? raw.date,
+      };
       for (const race of entries.races) {
-        cards.push(normalizeRace('us', track, race));
+        cards.push(normalizeRace(context, race));
       }
     }
     return cards;

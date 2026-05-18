@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   date,
   doublePrecision,
   index,
@@ -212,22 +213,149 @@ export const onboardingConversations = pgTable('onboarding_conversations', {
 }).enableRLS();
 
 // ---------------------------------------------------------------------------
-// races — racecards ingested from the Racing API, one row per race.
+// Racing reference data — a normalized hierarchy ingested from the Racing API:
 //
-// Carries both the raw provider payload (`raw_data`) and structured,
-// queryable columns (canonical surface / class, distance in furlongs) so the
-// M4 digest pipeline can filter races against user preferences in SQL. Shared
-// reference data: RLS allows any authenticated user to read; ingestion writes
-// only via the trusted server path (Drizzle owner role).
+//   tracks -> meets -> races -> race_entries
+//
+// with horses / jockeys / trainers as dimension entities the entries point
+// at. Records are upserted on first encounter and deduped on a stable key:
+// provider ids where the feed supplies them, synthesized natural keys where
+// it does not (horses have no provider id; owners are absent entirely). All
+// of it is shared reference data — RLS allows any authenticated user to read;
+// ingestion writes only via the trusted server path (Drizzle owner role).
+// ---------------------------------------------------------------------------
+
+const referenceSelectAll = (name: string) =>
+  pgPolicy(name, { for: 'select', to: authenticatedRole, using: sql`true` });
+
+export const tracks = pgTable(
+  'tracks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Provider track id (e.g. "GP"); informational — the feed omits it often.
+    providerTrackId: text('provider_track_id'),
+    // First-seen provider display name.
+    name: text('name').notNull(),
+    // Canonical name (onboarding vocabulary); the natural key tracks dedupe on.
+    nameCanonical: text('name_canonical').notNull().unique(),
+    region: text('region').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  () => [referenceSelectAll('tracks_select_all')],
+);
+
+export const meets = pgTable(
+  'meets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Provider meet id — always present; the meet's natural key.
+    providerMeetId: text('provider_meet_id').notNull().unique(),
+    trackId: uuid('track_id')
+      .notNull()
+      .references(() => tracks.id, { onDelete: 'cascade' }),
+    raceDate: date('race_date', { mode: 'string' }).notNull(),
+    region: text('region').notNull(),
+    country: text('country'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('meets_date_idx').on(table.raceDate),
+    referenceSelectAll('meets_select_all'),
+  ],
+);
+
+export const horses = pgTable(
+  'horses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    sireName: text('sire_name'),
+    damName: text('dam_name'),
+    // The feed gives horses no id; the natural key is the normalized
+    // name + sire + dam (see lib/racing/canonical.ts `horseNaturalKey`).
+    naturalKey: text('natural_key').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  () => [referenceSelectAll('horses_select_all')],
+);
+
+export const jockeys = pgTable(
+  'jockeys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Provider person id (e.g. "jky_na_441324") when supplied.
+    providerId: text('provider_id'),
+    name: text('name').notNull(),
+    // Provider id, or "name:<normalized>" when the feed omits the id.
+    naturalKey: text('natural_key').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  () => [referenceSelectAll('jockeys_select_all')],
+);
+
+export const trainers = pgTable(
+  'trainers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Provider person id (e.g. "trn_na_8563491") when supplied.
+    providerId: text('provider_id'),
+    name: text('name').notNull(),
+    // Provider id, or "name:<normalized>" when the feed omits the id.
+    naturalKey: text('natural_key').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  () => [referenceSelectAll('trainers_select_all')],
+);
+
+// ---------------------------------------------------------------------------
+// races — one row per race, belonging to a meet.
+//
+// Carries the raw provider payload (`raw_data`) and structured, queryable
+// columns (canonical surface / class, distance in furlongs); `race_date` and
+// `track_canonical` are denormalized from the meet/track so the digest can
+// filter in a single-table query. Runner detail lives in `race_entries`.
 // ---------------------------------------------------------------------------
 
 export const races = pgTable(
   'races',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    // Idempotency key `region|date|track|raceNumber`: re-ingesting a racing
-    // day updates the existing row instead of inserting a duplicate.
+    // Idempotency key `region|date|track|raceNumber|dayEvening`: re-ingesting
+    // a racing day updates the existing row instead of inserting a duplicate.
     key: text('key').notNull().unique(),
+    meetId: uuid('meet_id')
+      .notNull()
+      .references(() => meets.id, { onDelete: 'cascade' }),
     source: text('source').notNull().default('theracingapi'),
     region: text('region').notNull(),
     raceDate: date('race_date', { mode: 'string' }).notNull(),
@@ -236,6 +364,8 @@ export const races = pgTable(
     // digest matches a user's followed tracks against this column.
     trackCanonical: text('track_canonical').notNull(),
     raceNumber: integer('race_number'),
+    // Provider day/evening card marker (e.g. "D" / "E").
+    dayEvening: text('day_evening'),
     postTime: text('post_time'),
     postTimestamp: bigint('post_timestamp', { mode: 'number' }),
     surface: text('surface'),
@@ -265,11 +395,52 @@ export const races = pgTable(
       table.raceDate,
       table.trackCanonical,
     ),
-    pgPolicy('races_select_all', {
-      for: 'select',
-      to: authenticatedRole,
-      using: sql`true`,
+    referenceSelectAll('races_select_all'),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// race_entries — one row per horse entered in a race; the join between a
+// race and the horse / jockey / trainer dimensions.
+// ---------------------------------------------------------------------------
+
+export const raceEntries = pgTable(
+  'race_entries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Idempotency key `raceKey|programNumber`.
+    key: text('key').notNull().unique(),
+    raceId: uuid('race_id')
+      .notNull()
+      .references(() => races.id, { onDelete: 'cascade' }),
+    horseId: uuid('horse_id')
+      .notNull()
+      .references(() => horses.id, { onDelete: 'cascade' }),
+    jockeyId: uuid('jockey_id').references(() => jockeys.id, {
+      onDelete: 'set null',
     }),
+    trainerId: uuid('trainer_id').references(() => trainers.id, {
+      onDelete: 'set null',
+    }),
+    programNumber: text('program_number'),
+    postPosition: text('post_position'),
+    morningLineOdds: text('morning_line_odds'),
+    weight: text('weight'),
+    medication: text('medication'),
+    equipment: text('equipment'),
+    scratched: boolean('scratched').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('race_entries_race_idx').on(table.raceId),
+    index('race_entries_horse_idx').on(table.horseId),
+    referenceSelectAll('race_entries_select_all'),
   ],
 );
 
@@ -324,6 +495,18 @@ export type EmailSignupRow = typeof emailSignups.$inferSelect;
 export type HandicapperProfileRow = typeof handicapperProfile.$inferSelect;
 export type OnboardingConversationRow =
   typeof onboardingConversations.$inferSelect;
+export type TrackRow = typeof tracks.$inferSelect;
+export type NewTrackRow = typeof tracks.$inferInsert;
+export type MeetRow = typeof meets.$inferSelect;
+export type NewMeetRow = typeof meets.$inferInsert;
+export type HorseRow = typeof horses.$inferSelect;
+export type NewHorseRow = typeof horses.$inferInsert;
+export type JockeyRow = typeof jockeys.$inferSelect;
+export type NewJockeyRow = typeof jockeys.$inferInsert;
+export type TrainerRow = typeof trainers.$inferSelect;
+export type NewTrainerRow = typeof trainers.$inferInsert;
+export type RaceEntryRow = typeof raceEntries.$inferSelect;
+export type NewRaceEntryRow = typeof raceEntries.$inferInsert;
 export type RaceRow = typeof races.$inferSelect;
 export type NewRaceRow = typeof races.$inferInsert;
 export type DigestRow = typeof digests.$inferSelect;
