@@ -155,7 +155,10 @@ async function deliverDigests(
     const { date } = localParts(candidate.user.timezone, now);
     try {
       const existing = await getDigest(candidate.user.id, date);
-      if (existing) {
+      // Only a delivered digest blocks a re-run. A prior `skipped_no_races`
+      // or `failed` row is retried, so a re-trigger recovers once races are
+      // ingested or a transient send failure clears.
+      if (existing?.status === 'sent') {
         results.push({
           userId: candidate.user.id,
           email: candidate.user.email,
