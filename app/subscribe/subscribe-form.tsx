@@ -26,7 +26,9 @@ function CheckoutForm({ priceLabel }: { priceLabel: string }) {
 
     const result = await stripe.confirmPayment({
       elements,
-      confirmParams: { return_url: `${window.location.origin}/dashboard` },
+      confirmParams: {
+        return_url: `${window.location.origin}/subscribe/complete`,
+      },
     });
 
     // A successful confirm redirects to return_url; only errors return here.
