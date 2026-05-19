@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { getHandicapperProfile } from '@/db/queries';
 import { triggerImmediateDigest } from '@/lib/digest/pipeline';
 import { updateProfileFields } from '@/lib/onboarding/persistence';
@@ -26,8 +27,9 @@ function asCommaList(value: FormDataEntryValue | null): string[] {
 }
 
 /**
- * "Looks right" — onboarding is complete. Send the user their first digest
- * immediately (best-effort), then move to the dashboard.
+ * "Looks right" — onboarding is complete. Kick off the user's first digest
+ * (best-effort, long-running LLM call) in the background and redirect to
+ * the dashboard immediately, so they aren't stuck waiting on the button.
  */
 export async function confirmProfile(): Promise<void> {
   const supabase = await createClient();
@@ -35,7 +37,18 @@ export async function confirmProfile(): Promise<void> {
     data: { user },
   } = await supabase.auth.getUser();
   if (user) {
-    await triggerImmediateDigest(user.id);
+    const userId = user.id;
+    after(async () => {
+      try {
+        await triggerImmediateDigest(userId);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : String(error);
+        console.error(
+          `[onboarding] immediate digest failed for ${userId}: ${message}`,
+        );
+      }
+    });
   }
   redirect('/dashboard');
 }

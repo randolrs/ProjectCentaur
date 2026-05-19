@@ -6,6 +6,7 @@ import type { HandicapperProfileRow } from '@/db/schema';
 import { getActiveConversation } from '@/lib/onboarding/persistence';
 import { firstParam, type SearchParams } from '@/lib/search-params';
 import { createClient } from '@/lib/supabase/server';
+import { SubmitButton } from '@/app/_components/submit-button';
 import { confirmProfile, saveProfileEdits } from './actions';
 import { ProfileBuilding } from './profile-building';
 
@@ -124,12 +125,12 @@ function SummaryView({ profile }: { profile: HandicapperProfileRow }) {
 
       <div className="flex items-center gap-3">
         <form action={confirmProfile}>
-          <button
-            type="submit"
-            className="rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white"
+          <SubmitButton
+            pendingText="Saving…"
+            className="rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
           >
             Looks right
-          </button>
+          </SubmitButton>
         </form>
         <Link
           href="/onboarding/review?edit=1"
