@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import {
-  BANKROLL_TIER_OPTIONS,
   BET_TYPE_OPTIONS,
   DAYS_PER_WEEK_OPTIONS,
   DISTANCE_RANGE_OPTIONS,
@@ -11,6 +10,7 @@ import {
   TIMEZONE_OPTIONS,
   TRACK_OPTIONS,
 } from '@/lib/onboarding/options';
+import { MultiPillGroup, SinglePillGroup } from './pill-group';
 
 // Shared handicapping-preference form fields, rendered inside a <form> by
 // both onboarding (blank) and the /preferences edit page (pre-filled).
@@ -23,7 +23,6 @@ export interface PreferenceValues {
   surfaces: readonly string[];
   fieldSizeBand: string;
   betTypes: readonly string[];
-  bankrollTier: string;
   daysPerWeek: number;
   timezone: string;
 }
@@ -103,33 +102,42 @@ function RadioGroup({
   );
 }
 
-const selectClass =
-  'w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-neutral-400';
+const TRACK_OPTION_LIST: Option[] = TRACK_OPTIONS.map((track) => ({
+  value: track,
+  label: track,
+}));
+
+const DAYS_OPTION_LIST: Option[] = DAYS_PER_WEEK_OPTIONS.map((days) => ({
+  value: String(days),
+  label: String(days),
+}));
 
 export function PreferencesFields({ current }: { current?: PreferenceValues }) {
-  const trackOptions: Option[] = TRACK_OPTIONS.map((track) => ({
-    value: track,
-    label: track,
-  }));
-
   return (
     <>
       <Section
         title="Tracks"
-        description="Which tracks do you want covered? Pick at least one."
+        description="Every track we cover is on by default — switch off any you don't follow."
       >
-        <CheckboxGroup
+        <MultiPillGroup
           name="tracks"
-          options={trackOptions}
-          selected={current?.tracks ?? []}
+          options={TRACK_OPTION_LIST}
+          defaultSelected={current ? current.tracks : TRACK_OPTIONS}
         />
       </Section>
 
-      <Section title="Race classes" description="Which class levels do you play?">
-        <CheckboxGroup
+      <Section
+        title="Race classes"
+        description="On by default — switch off the class levels you don't play."
+      >
+        <MultiPillGroup
           name="raceClasses"
           options={RACE_CLASS_OPTIONS}
-          selected={current?.raceClasses ?? []}
+          defaultSelected={
+            current
+              ? current.raceClasses
+              : RACE_CLASS_OPTIONS.map((option) => option.value)
+          }
         />
       </Section>
 
@@ -172,53 +180,26 @@ export function PreferencesFields({ current }: { current?: PreferenceValues }) {
       </Section>
 
       <Section
-        title="Bankroll"
-        description="Roughly what bankroll do you play with?"
+        title="Days per week"
+        description="How many days a week are you active?"
       >
-        <RadioGroup
-          name="bankrollTier"
-          options={BANKROLL_TIER_OPTIONS}
-          selected={current?.bankrollTier}
+        <SinglePillGroup
+          name="daysPerWeek"
+          options={DAYS_OPTION_LIST}
+          defaultValue={current ? String(current.daysPerWeek) : undefined}
         />
       </Section>
 
       <Section
-        title="Days per week"
-        description="How many days a week are you active?"
+        title="Timezone"
+        description="Used to time your morning digest — we'll detect yours automatically."
       >
-        <select
-          name="daysPerWeek"
-          required
-          defaultValue={current ? String(current.daysPerWeek) : ''}
-          className={selectClass}
-        >
-          <option value="" disabled>
-            Select…
-          </option>
-          {DAYS_PER_WEEK_OPTIONS.map((days) => (
-            <option key={days} value={days}>
-              {days}
-            </option>
-          ))}
-        </select>
-      </Section>
-
-      <Section title="Timezone" description="Used to time your morning digest.">
-        <select
+        <SinglePillGroup
           name="timezone"
-          required
-          defaultValue={current?.timezone ?? ''}
-          className={selectClass}
-        >
-          <option value="" disabled>
-            Select…
-          </option>
-          {TIMEZONE_OPTIONS.map((tz) => (
-            <option key={tz.value} value={tz.value}>
-              {tz.label}
-            </option>
-          ))}
-        </select>
+          options={TIMEZONE_OPTIONS}
+          defaultValue={current?.timezone || undefined}
+          autoDetect
+        />
       </Section>
     </>
   );

@@ -51,7 +51,6 @@ export default async function DashboardPage() {
     ['Surfaces', prefs.surfaces.join(', ')],
     ['Field size', prefs.fieldSizeBand],
     ['Bet types', prefs.betTypes.join(', ')],
-    ['Bankroll tier', prefs.bankrollTier],
     ['Days per week', String(prefs.daysPerWeek)],
     ['Timezone', profile?.timezone ?? '—'],
   ];

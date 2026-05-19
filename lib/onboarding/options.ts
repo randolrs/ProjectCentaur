@@ -55,12 +55,6 @@ export const BET_TYPE_OPTIONS = [
   { value: 'pick_6', label: 'Pick 6' },
 ] as const satisfies readonly Option[];
 
-export const BANKROLL_TIER_OPTIONS = [
-  { value: 'casual', label: 'Casual — under $1,000' },
-  { value: 'regular', label: 'Regular — $1,000 to $10,000' },
-  { value: 'serious', label: 'Serious — over $10,000' },
-] as const satisfies readonly Option[];
-
 export const TIMEZONE_OPTIONS = [
   { value: 'America/New_York', label: 'Eastern (ET)' },
   { value: 'America/Chicago', label: 'Central (CT)' },
@@ -108,7 +102,6 @@ export const onboardingSchema = z.object({
   betTypes: z
     .array(z.enum(enumValues(BET_TYPE_OPTIONS)))
     .min(1, 'Pick at least one bet type.'),
-  bankrollTier: z.enum(enumValues(BANKROLL_TIER_OPTIONS)),
   daysPerWeek: z.coerce.number().int().min(1).max(7),
   timezone: z.enum(enumValues(TIMEZONE_OPTIONS)),
 });

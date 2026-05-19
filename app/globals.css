@@ -12,3 +12,12 @@
   --color-turf-bright: #6cba88;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
 }
+
+/* Tailwind v4 no longer sets cursor:pointer on buttons — restore it for
+   enabled, clickable buttons across the app. */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}

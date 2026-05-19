@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { SubmitButton } from '@/app/_components/submit-button';
 import { signUp } from '@/lib/actions/auth';
 import { firstParam, type SearchParams } from '@/lib/search-params';
 
@@ -46,12 +47,12 @@ export default async function SignupPage({
             />
             <p className="text-xs text-neutral-500">At least 8 characters.</p>
           </div>
-          <button
-            type="submit"
-            className="w-full rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white"
+          <SubmitButton
+            pendingText="Creating account…"
+            className="w-full rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
           >
             Sign up
-          </button>
+          </SubmitButton>
         </form>
 
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
