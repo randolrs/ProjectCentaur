@@ -50,7 +50,6 @@ function prefs(overrides: Partial<UserPreferencesRow>): UserPreferencesRow {
     surfaces: ['dirt'],
     fieldSizeBand: 'any',
     betTypes: ['win'],
-    bankrollTier: 'regular',
     daysPerWeek: 3,
     createdAt: now,
     updatedAt: now,

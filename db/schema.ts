@@ -81,7 +81,6 @@ export const userPreferences = pgTable(
     surfaces: text('surfaces').array().notNull(),
     fieldSizeBand: text('field_size_band').notNull(),
     betTypes: text('bet_types').array().notNull(),
-    bankrollTier: text('bankroll_tier').notNull(),
     daysPerWeek: integer('days_per_week').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()

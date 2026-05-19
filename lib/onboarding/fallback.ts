@@ -10,14 +10,6 @@ import type { HandicapperProfile } from './schema';
 // onboarding always terminates with a usable profile.
 // ---------------------------------------------------------------------------
 
-function experienceFromBankroll(
-  tier: string,
-): HandicapperProfile['experience_level'] {
-  if (tier === 'serious') return 'expert';
-  if (tier === 'regular') return 'serious';
-  return 'casual';
-}
-
 function betOrientation(
   betTypes: readonly string[],
 ): HandicapperProfile['primary_bet_orientation'] {
@@ -51,7 +43,9 @@ export function synthesizeFallbackProfile(
     avoided_setups: ['races outside the followed tracks and class levels'],
     value_threshold: 'mid_range',
     preferred_value_range: null,
-    experience_level: experienceFromBankroll(prefs.bankrollTier),
+    // Neutral default — the conversation, not the intake form, is what
+    // establishes experience level.
+    experience_level: 'serious',
     primary_bet_orientation: betOrientation(prefs.betTypes),
     notable_tracks_mentioned: prefs.tracks.slice(0, 10),
     notable_trainers_mentioned: [],

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { PreferencesFields } from '@/app/_components/preferences-fields';
+import { SubmitButton } from '@/app/_components/submit-button';
 import { getUserPreferences } from '@/db/queries';
 import { saveOnboarding } from '@/lib/actions/onboarding';
 import { firstParam, type SearchParams } from '@/lib/search-params';
@@ -45,12 +46,12 @@ export default async function OnboardingPage({
 
         <form action={saveOnboarding} className="space-y-6">
           <PreferencesFields />
-          <button
-            type="submit"
-            className="w-full rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white"
+          <SubmitButton
+            pendingText="Saving…"
+            className="w-full rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
           >
             Save profile
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </main>

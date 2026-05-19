@@ -46,7 +46,6 @@ const prefs: UserPreferencesRow = {
   surfaces: ['dirt'],
   fieldSizeBand: 'small',
   betTypes: ['win', 'exacta'],
-  bankrollTier: 'regular',
   daysPerWeek: 3,
   createdAt: now,
   updatedAt: now,

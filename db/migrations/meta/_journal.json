@@ -57,6 +57,13 @@
       "when": 1779116810163,
       "tag": "0007_m7_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779151630138,
+      "tag": "0008_drop_bankroll_tier",
+      "breakpoints": true
     }
   ]
 }

@@ -8,7 +8,6 @@ const validInput = {
   surfaces: ['dirt', 'turf'],
   fieldSizeBand: 'medium',
   betTypes: ['win', 'exacta'],
-  bankrollTier: 'regular',
   daysPerWeek: '4',
   timezone: 'America/New_York',
 };
@@ -38,7 +37,7 @@ describe('onboardingSchema', () => {
 
   it('rejects an invalid enum value', () => {
     expect(
-      onboardingSchema.safeParse({ ...validInput, bankrollTier: 'whale' })
+      onboardingSchema.safeParse({ ...validInput, fieldSizeBand: 'huge' })
         .success,
     ).toBe(false);
   });

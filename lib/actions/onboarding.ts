@@ -18,7 +18,6 @@ function readPreferencesForm(formData: FormData) {
     surfaces: formData.getAll('surfaces'),
     fieldSizeBand: formData.get('fieldSizeBand'),
     betTypes: formData.getAll('betTypes'),
-    bankrollTier: formData.get('bankrollTier'),
     daysPerWeek: formData.get('daysPerWeek'),
     timezone: formData.get('timezone'),
   };
@@ -49,7 +48,6 @@ async function persistPreferences(
     surfaces: prefs.surfaces,
     fieldSizeBand: prefs.fieldSizeBand,
     betTypes: prefs.betTypes,
-    bankrollTier: prefs.bankrollTier,
     daysPerWeek: prefs.daysPerWeek,
   };
   await db
