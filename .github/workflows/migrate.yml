@@ -1,0 +1,28 @@
+name: Migrate database
+
+# Applies pending Drizzle migrations to the production database whenever
+# migration files land on main, so the schema stays in lockstep with the
+# code deploy instead of having to be applied by hand.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'db/migrations/**'
+
+# Never let two migration runs overlap.
+concurrency:
+  group: db-migrate
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

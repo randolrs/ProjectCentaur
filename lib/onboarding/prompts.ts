@@ -1,6 +1,6 @@
 import type { UserPreferencesRow } from '@/db/schema';
 import { ONBOARDING_PROFILE_EXAMPLES } from '@/lib/llm/prompts/us/onboarding_examples';
-import { ONBOARDING_OPENER } from '@/lib/llm/prompts/us/onboarding_opener';
+import { ONBOARDING_QUESTIONS } from '@/lib/llm/prompts/us/onboarding_questions';
 import { ONBOARDING_SYSTEM_PROMPT } from '@/lib/llm/prompts/us/onboarding_system';
 
 // Region-agnostic accessors for the onboarding conversation prompts. v1 is
@@ -11,9 +11,9 @@ export function systemPrompt(): string {
   return `${ONBOARDING_SYSTEM_PROMPT}\n\n${ONBOARDING_PROFILE_EXAMPLES}`;
 }
 
-/** The deterministic opening question. */
-export function openingQuestion(): string {
-  return ONBOARDING_OPENER;
+/** The fixed baseline questions shown when an adaptive question isn't ready. */
+export function baselineQuestions(): readonly string[] {
+  return ONBOARDING_QUESTIONS;
 }
 
 /**

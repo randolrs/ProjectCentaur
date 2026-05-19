@@ -1,150 +1,140 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { getUserPreferences } from '@/db/queries';
-import type { UserPreferencesRow } from '@/db/schema';
 import { synthesizeFallbackProfile } from '@/lib/onboarding/fallback';
-import {
-  callSonnetForNextTurn,
-  type NextTurnResult,
-  OnboardingLlmError,
-} from '@/lib/onboarding/llm';
+import { callSonnetForNextTurn } from '@/lib/onboarding/llm';
 import {
   finalizeProfile,
-  getActiveConversation,
   saveConversationTurns,
 } from '@/lib/onboarding/persistence';
 import { renderStructuredContext } from '@/lib/onboarding/prompts';
 import {
   type ConversationTurn,
+  ConversationTurnSchema,
   HandicapperProfileSchema,
 } from '@/lib/onboarding/schema';
 import { createClient } from '@/lib/supabase/server';
-import type { SubmitTurnResult } from './types';
+import type { GenerateQuestionResult } from './types';
 
-// Force the model to finalize once the user has answered this many times.
-const HARD_CAP_USER_TURNS = 8;
-// Defensive ceiling — finalize from structured data without calling the model.
-const RUNAWAY_USER_TURNS = 10;
 const MAX_ANSWER_CHARS = 4000;
-const COST_ALERT_USD = 1;
+// Sanity cap on the client-supplied transcript (6 questions + 6 answers).
+const MAX_TURNS = 24;
 
-function logConversationCost(
-  userId: string,
-  costUsd: number,
-  userTurns: number,
-  outcome: string,
-): void {
-  const line = `[onboarding] conversation user=${userId} outcome=${outcome} userTurns=${userTurns} cost=$${costUsd.toFixed(4)}`;
-  if (costUsd > COST_ALERT_USD) {
-    console.error(`${line} — COST ALERT: exceeded $${COST_ALERT_USD}`);
-  } else {
-    console.log(line);
+/** Validate and clamp the transcript a client sends with each request. */
+function sanitizeTurns(raw: unknown): ConversationTurn[] {
+  const list = Array.isArray(raw) ? raw.slice(0, MAX_TURNS) : [];
+  const turns: ConversationTurn[] = [];
+  for (const entry of list) {
+    const parsed = ConversationTurnSchema.safeParse(entry);
+    if (parsed.success) {
+      turns.push({
+        ...parsed.data,
+        content: parsed.data.content.slice(0, MAX_ANSWER_CHARS),
+      });
+    }
   }
+  return turns;
 }
 
-async function finalizeWithFallback(
-  userId: string,
-  prefs: UserPreferencesRow,
-  turns: ConversationTurn[],
-): Promise<void> {
-  await finalizeProfile(userId, synthesizeFallbackProfile(prefs), turns);
+function logCost(userId: string, label: string, costUsd: number): void {
+  console.log(
+    `[onboarding] ${label} user=${userId} cost=$${costUsd.toFixed(4)}`,
+  );
 }
 
 /**
- * Advance the onboarding conversation by one turn. On completion (model
- * `done`, the hard cap, or an LLM failure) the profile is persisted and the
- * action redirects to the review screen.
+ * Generate the next adaptive question from the transcript so far. Called in
+ * the background while the user answers the intervening question, so a slow
+ * model never blocks step progression. On any failure the caller falls back
+ * to the deterministic baseline question.
  */
-export async function submitTurn(
-  answerRaw: string,
-): Promise<SubmitTurnResult> {
+export async function generateAdaptiveQuestion(
+  turnsRaw: unknown,
+): Promise<GenerateQuestionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { status: 'failed' };
+
+  const prefs = await getUserPreferences(user.id);
+  if (!prefs) return { status: 'failed' };
+
+  const turns = sanitizeTurns(turnsRaw);
+  if (turns.length === 0) return { status: 'failed' };
+
+  try {
+    const result = await callSonnetForNextTurn({
+      turns,
+      structuredContext: renderStructuredContext(prefs),
+      forceFinish: false,
+    });
+    logCost(user.id, 'adaptive-question', result.usage.costUsd);
+    if (!result.response.done) {
+      return { status: 'question', question: result.response.next_question };
+    }
+    return { status: 'failed' };
+  } catch {
+    return { status: 'failed' };
+  }
+}
+
+/** Persist the in-progress transcript so a refresh can resume the flow. */
+export async function saveProgress(turnsRaw: unknown): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  await saveConversationTurns(user.id, sanitizeTurns(turnsRaw), 0);
+}
+
+/**
+ * Finish the conversation: persist the final transcript, then synthesize the
+ * handicapper profile in the background and redirect the user straight to the
+ * review screen, which waits for the profile to land.
+ */
+export async function finishConversation(turnsRaw: unknown): Promise<void> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const answer = answerRaw.trim().slice(0, MAX_ANSWER_CHARS);
-  if (!answer) {
-    return { status: 'error', message: 'Type an answer to continue.' };
-  }
-
-  const conversation = await getActiveConversation(user.id);
-  if (!conversation || conversation.expired) {
-    return { status: 'expired' };
-  }
-
   const prefs = await getUserPreferences(user.id);
   if (!prefs) redirect('/onboarding');
 
-  const turns: ConversationTurn[] = [
-    ...conversation.turns,
-    { role: 'user', content: answer, timestamp: new Date().toISOString() },
-  ];
-  const userTurns = turns.filter((t) => t.role === 'user').length;
+  const userId = user.id;
+  const turns = sanitizeTurns(turnsRaw);
+  const structuredContext = renderStructuredContext(prefs);
 
-  // Runaway guard — unreachable under the hard cap, kept as defense in depth.
-  if (userTurns > RUNAWAY_USER_TURNS) {
-    logConversationCost(user.id, conversation.costUsd, userTurns, 'runaway');
-    await finalizeWithFallback(user.id, prefs, turns);
-    redirect('/onboarding/review');
-  }
+  // Keep the transcript on record so the review screen can tell that a
+  // synthesis is in progress (the row is deleted once the profile lands).
+  await saveConversationTurns(userId, turns, 0);
 
-  const forceFinish = userTurns >= HARD_CAP_USER_TURNS;
+  after(async () => {
+    let profile = synthesizeFallbackProfile(prefs);
+    try {
+      const result = await callSonnetForNextTurn({
+        turns,
+        structuredContext,
+        forceFinish: true,
+      });
+      logCost(userId, 'profile-synthesis', result.usage.costUsd);
+      if (result.response.done) {
+        const validated = HandicapperProfileSchema.safeParse({
+          ...result.response.profile,
+          version: 1,
+        });
+        if (validated.success) profile = validated.data;
+      }
+    } catch {
+      // Fall back to the profile synthesized from the M1 structured answers.
+    }
+    await finalizeProfile(userId, profile, turns);
+  });
 
-  let result: NextTurnResult;
-  try {
-    result = await callSonnetForNextTurn({
-      turns,
-      structuredContext: renderStructuredContext(prefs),
-      forceFinish,
-    });
-  } catch (err) {
-    const usage = err instanceof OnboardingLlmError ? err.usage : null;
-    logConversationCost(
-      user.id,
-      conversation.costUsd + (usage?.costUsd ?? 0),
-      userTurns,
-      'llm-error',
-    );
-    await finalizeWithFallback(user.id, prefs, turns);
-    redirect('/onboarding/review');
-  }
-
-  const totalCost = conversation.costUsd + result.usage.costUsd;
-
-  if (result.response.done) {
-    const candidate = { ...result.response.profile, version: 1 as const };
-    const validated = HandicapperProfileSchema.safeParse(candidate);
-    const profile = validated.success
-      ? validated.data
-      : synthesizeFallbackProfile(prefs);
-    logConversationCost(user.id, totalCost, userTurns, 'completed');
-    await finalizeProfile(user.id, profile, turns);
-    redirect('/onboarding/review');
-  }
-
-  // The model ignored the force-finish instruction — finalize anyway.
-  if (forceFinish) {
-    logConversationCost(user.id, totalCost, userTurns, 'forced-fallback');
-    await finalizeWithFallback(user.id, prefs, turns);
-    redirect('/onboarding/review');
-  }
-
-  const updatedTurns: ConversationTurn[] = [
-    ...turns,
-    {
-      role: 'assistant',
-      content: result.response.next_question,
-      timestamp: new Date().toISOString(),
-    },
-  ];
-  await saveConversationTurns(user.id, updatedTurns, totalCost);
-
-  return {
-    status: 'question',
-    question: result.response.next_question,
-    questionNumber: updatedTurns.filter((t) => t.role === 'assistant').length,
-  };
+  redirect('/onboarding/review');
 }

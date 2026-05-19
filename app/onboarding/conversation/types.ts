@@ -1,7 +1,6 @@
-// Result of one conversation turn. Defined outside actions.ts because a
-// 'use server' module may only export async functions.
+// Result of a background adaptive-question generation. Defined outside
+// actions.ts because a 'use server' module may only export async functions.
 
-export type SubmitTurnResult =
-  | { status: 'question'; question: string; questionNumber: number }
-  | { status: 'expired' }
-  | { status: 'error'; message: string };
+export type GenerateQuestionResult =
+  | { status: 'question'; question: string }
+  | { status: 'failed' };
