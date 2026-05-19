@@ -3,9 +3,11 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { getHandicapperProfile } from '@/db/queries';
 import type { HandicapperProfileRow } from '@/db/schema';
+import { getActiveConversation } from '@/lib/onboarding/persistence';
 import { firstParam, type SearchParams } from '@/lib/search-params';
 import { createClient } from '@/lib/supabase/server';
 import { confirmProfile, saveProfileEdits } from './actions';
+import { ProfileBuilding } from './profile-building';
 
 // Confirming onboarding triggers the user's first digest — an LLM call and
 // an email send — so allow a generous execution window.
@@ -304,6 +306,19 @@ export default async function ReviewPage({
 
   const profile = await getHandicapperProfile(user.id);
   if (!profile) {
+    // No profile yet: if a conversation is still on record, its synthesis is
+    // running in the background — wait for it. Otherwise there's nothing to
+    // review, so send the user back to start the conversation.
+    const conversation = await getActiveConversation(user.id);
+    if (conversation && !conversation.expired) {
+      return (
+        <main className="flex min-h-screen flex-col items-center bg-neutral-950 px-6 text-neutral-100">
+          <div className="w-full max-w-xl py-16">
+            <ProfileBuilding />
+          </div>
+        </main>
+      );
+    }
     redirect('/onboarding/conversation');
   }
 
