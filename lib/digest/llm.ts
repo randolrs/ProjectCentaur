@@ -141,9 +141,20 @@ export async function generateDigest(
       if (parsed) {
         return { output: parsed, usage: total };
       }
+      // Capture the actual model output so a parse failure can be diagnosed
+      // — block types reveal a thinking-only response (no text), stop_reason
+      // flags max_tokens truncation, and the preview shows the JSON shape.
+      console.error('[digest/llm] parse failed', {
+        attempt,
+        stopReason: res.stop_reason,
+        contentTypes: res.content.map((block) => block.type),
+        textLength: text.length,
+        textPreview: text.slice(0, 2000),
+      });
       lastError = 'model response did not match the expected JSON shape';
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
+      console.error('[digest/llm] call threw', { attempt, lastError });
     }
   }
 
