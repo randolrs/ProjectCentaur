@@ -15,8 +15,8 @@ import type { ScoredRace } from './select';
 // ---------------------------------------------------------------------------
 
 const MODEL = 'claude-sonnet-4-6';
-// Generous ceiling so adaptive thinking has room before the JSON output.
-const MAX_TOKENS = 8000;
+// Headroom for adaptive thinking plus the JSON output of a full digest.
+const MAX_TOKENS = 16000;
 const MAX_ATTEMPTS = 2;
 // Each attempt gets real time for a long generation, but the total across
 // attempts is capped under the digest route's 300s maxDuration — a slow model
