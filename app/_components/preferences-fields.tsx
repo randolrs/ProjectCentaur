@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import {
   BET_TYPE_OPTIONS,
   DAYS_PER_WEEK_OPTIONS,
@@ -34,7 +33,7 @@ function Section({
 }: {
   title: string;
   description: string;
-  children: ReactNode;
+  children: React.ReactNode;
 }) {
   return (
     <section className="space-y-3 border-t border-neutral-800 pt-6">
@@ -44,61 +43,6 @@ function Section({
       </div>
       {children}
     </section>
-  );
-}
-
-function CheckboxGroup({
-  name,
-  options,
-  selected,
-}: {
-  name: string;
-  options: readonly Option[];
-  selected: readonly string[];
-}) {
-  return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      {options.map((option) => (
-        <label key={option.value} className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            name={name}
-            value={option.value}
-            defaultChecked={selected.includes(option.value)}
-            className="accent-neutral-100"
-          />
-          {option.label}
-        </label>
-      ))}
-    </div>
-  );
-}
-
-function RadioGroup({
-  name,
-  options,
-  selected,
-}: {
-  name: string;
-  options: readonly Option[];
-  selected: string | undefined;
-}) {
-  return (
-    <div className="space-y-2">
-      {options.map((option) => (
-        <label key={option.value} className="flex items-center gap-2 text-sm">
-          <input
-            type="radio"
-            name={name}
-            value={option.value}
-            defaultChecked={selected === option.value}
-            required
-            className="accent-neutral-100"
-          />
-          {option.label}
-        </label>
-      ))}
-    </div>
   );
 }
 
@@ -142,18 +86,18 @@ export function PreferencesFields({ current }: { current?: PreferenceValues }) {
       </Section>
 
       <Section title="Distance ranges" description="Sprints, routes, or longer.">
-        <CheckboxGroup
+        <MultiPillGroup
           name="distanceRanges"
           options={DISTANCE_RANGE_OPTIONS}
-          selected={current?.distanceRanges ?? []}
+          defaultSelected={current?.distanceRanges ?? []}
         />
       </Section>
 
       <Section title="Surfaces" description="Which surfaces do you follow?">
-        <CheckboxGroup
+        <MultiPillGroup
           name="surfaces"
           options={SURFACE_OPTIONS}
-          selected={current?.surfaces ?? []}
+          defaultSelected={current?.surfaces ?? []}
         />
       </Section>
 
@@ -161,10 +105,10 @@ export function PreferencesFields({ current }: { current?: PreferenceValues }) {
         title="Field size"
         description="Field size you most like to bet into."
       >
-        <RadioGroup
+        <SinglePillGroup
           name="fieldSizeBand"
           options={FIELD_SIZE_BAND_OPTIONS}
-          selected={current?.fieldSizeBand}
+          defaultValue={current?.fieldSizeBand || undefined}
         />
       </Section>
 
@@ -172,10 +116,10 @@ export function PreferencesFields({ current }: { current?: PreferenceValues }) {
         title="Bet types"
         description="Which wagers do you typically make?"
       >
-        <CheckboxGroup
+        <MultiPillGroup
           name="betTypes"
           options={BET_TYPE_OPTIONS}
-          selected={current?.betTypes ?? []}
+          defaultSelected={current?.betTypes ?? []}
         />
       </Section>
 
