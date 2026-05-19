@@ -50,7 +50,7 @@ function prefs(overrides: Partial<UserPreferencesRow>): UserPreferencesRow {
     surfaces: ['dirt'],
     fieldSizeBand: 'any',
     betTypes: ['win'],
-    daysPerWeek: 3,
+    activeDays: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
     createdAt: now,
     updatedAt: now,
     ...overrides,

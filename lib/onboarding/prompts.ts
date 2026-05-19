@@ -31,6 +31,6 @@ export function renderStructuredContext(prefs: UserPreferencesRow): string {
     `- Surfaces: ${prefs.surfaces.join(', ')}`,
     `- Preferred field size: ${prefs.fieldSizeBand}`,
     `- Bet types used: ${prefs.betTypes.join(', ')}`,
-    `- Active days per week: ${prefs.daysPerWeek}`,
+    `- Active racing days: ${prefs.activeDays.join(', ')}`,
   ].join('\n');
 }

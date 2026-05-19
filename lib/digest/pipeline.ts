@@ -9,7 +9,7 @@ import { renderDigestEmail } from './email';
 import { DigestLlmError, generateDigest } from './llm';
 import { getDigest, recordDigest } from './persistence';
 import { buildRenderedDigest } from './render';
-import { isUserDue, localParts } from './schedule';
+import { isUserDue, localParts, localWeekday } from './schedule';
 import { selectRacesForUser } from './select';
 import { sendEmail } from '@/lib/email/resend';
 import { getSiteUrl } from '@/lib/env';
@@ -238,7 +238,8 @@ async function deliverDigests(
 /**
  * Cron entry point. Delivers digests to every onboarded user who may receive
  * one now — an active subscriber, or an unsubscribed user still inside their
- * free allotment — for whom `now` is their configured delivery hour.
+ * free allotment — for whom `now` is their configured delivery hour on a
+ * weekday they marked active.
  */
 export async function runHourlyDigest(
   now: Date = new Date(),
@@ -250,7 +251,9 @@ export async function runHourlyDigest(
       canReceiveDigest(
         e.subscription?.status,
         sentCounts.get(e.user.id) ?? 0,
-      ) && isUserDue(e.user, now),
+      ) &&
+      isUserDue(e.user, now) &&
+      e.prefs.activeDays.includes(localWeekday(e.user.timezone, now)),
   );
   return deliverDigests(due, eligible.length, now);
 }

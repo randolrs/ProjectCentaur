@@ -64,6 +64,20 @@
       "when": 1779151630138,
       "tag": "0008_drop_bankroll_tier",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1779154567371,
+      "tag": "0009_drop_days_per_week",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1779154582711,
+      "tag": "0010_add_active_days",
+      "breakpoints": true
     }
   ]
 }

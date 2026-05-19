@@ -42,3 +42,11 @@ export function localParts(timezone: string | null, now: Date): LocalParts {
 export function isUserDue(user: UserRow, now: Date): boolean {
   return localParts(user.timezone, now).hour === user.digestDeliveryHour;
 }
+
+/** The local day-of-week code (`mon`..`sun`) at `now` in the given timezone. */
+export function localWeekday(timezone: string | null, now: Date): string {
+  const tz = timezone ?? DEFAULT_TIMEZONE;
+  return new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' })
+    .format(now)
+    .toLowerCase();
+}

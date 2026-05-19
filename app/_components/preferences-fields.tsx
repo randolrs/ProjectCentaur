@@ -1,6 +1,6 @@
 import {
+  ACTIVE_DAY_OPTIONS,
   BET_TYPE_OPTIONS,
-  DAYS_PER_WEEK_OPTIONS,
   DISTANCE_RANGE_OPTIONS,
   FIELD_SIZE_BAND_OPTIONS,
   type Option,
@@ -22,7 +22,7 @@ export interface PreferenceValues {
   surfaces: readonly string[];
   fieldSizeBand: string;
   betTypes: readonly string[];
-  daysPerWeek: number;
+  activeDays: readonly string[];
   timezone: string;
 }
 
@@ -49,11 +49,6 @@ function Section({
 const TRACK_OPTION_LIST: Option[] = TRACK_OPTIONS.map((track) => ({
   value: track,
   label: track,
-}));
-
-const DAYS_OPTION_LIST: Option[] = DAYS_PER_WEEK_OPTIONS.map((days) => ({
-  value: String(days),
-  label: String(days),
 }));
 
 export function PreferencesFields({ current }: { current?: PreferenceValues }) {
@@ -124,13 +119,17 @@ export function PreferencesFields({ current }: { current?: PreferenceValues }) {
       </Section>
 
       <Section
-        title="Days per week"
-        description="How many days a week are you active?"
+        title="Active days"
+        description="Pick the mornings you want your digest — we'll only send it on the days you choose."
       >
-        <SinglePillGroup
-          name="daysPerWeek"
-          options={DAYS_OPTION_LIST}
-          defaultValue={current ? String(current.daysPerWeek) : undefined}
+        <MultiPillGroup
+          name="activeDays"
+          options={ACTIVE_DAY_OPTIONS}
+          defaultSelected={
+            current
+              ? current.activeDays
+              : ACTIVE_DAY_OPTIONS.map((option) => option.value)
+          }
         />
       </Section>
 
