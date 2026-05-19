@@ -65,21 +65,19 @@ export default function Home() {
       <main className="mx-auto w-full max-w-2xl space-y-20 px-6 pb-20 pt-8">
         {/* Hero */}
         <section className="space-y-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-turf-bright">
-            For US thoroughbred handicappers
-          </p>
           <h1 className="font-serif text-4xl font-semibold leading-[1.15] tracking-tight sm:text-5xl">
             Stop scanning 200 races to find the five that matter.
           </h1>
           <p className="text-base leading-relaxed text-paper/70">
-            Furlong reads every card at the tracks you follow, every morning,
-            and emails you the handful of races worth your time — with the
-            angle on each. A triage tool, not a tout service.
+            Furlong learns how you handicap — your tracks, your classes, the
+            setups you live for — then analyzes every card each morning and
+            emails you the races that fit your game. A digest built around the
+            way you play, not a generic tip sheet.
           </p>
-          <div className="flex flex-wrap items-center gap-4 pt-2">
+          <div className="flex flex-col items-start gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
             <Link
               href="/signup"
-              className="rounded-md bg-turf-bright px-5 py-2.5 text-sm font-semibold text-ink hover:opacity-90"
+              className="w-full rounded-md bg-turf-bright px-5 py-2.5 text-center text-sm font-semibold text-ink hover:opacity-90 sm:w-auto"
             >
               Get your first digest free
             </Link>
@@ -92,7 +90,7 @@ export default function Home() {
         {/* Sample digest — rendered as the artifact itself */}
         <section className="space-y-4">
           <h2 className="font-serif text-xl font-semibold">
-            A morning at your tracks looks like this
+            A digest built around how you play
           </h2>
           <div className="rounded-lg bg-paper p-7 text-ink shadow-xl shadow-black/40">
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-turf">
@@ -146,12 +144,14 @@ export default function Home() {
         {/* Positioning */}
         <section className="space-y-3 rounded-lg border border-paper/10 bg-paper/5 p-7">
           <h2 className="font-serif text-2xl font-semibold tracking-tight">
-            Not picks. Not hype.
+            Your morning homework, done.
           </h2>
           <p className="text-sm leading-relaxed text-paper/65">
-            Furlong won&apos;t tell you what to bet. It tells you which races
-            deserve your attention — and says so plainly when one doesn&apos;t.
-            The morning&apos;s homework, done. The decisions, still yours.
+            Furlong does the grind — every card, every past performance, every
+            angle — measured against the way you handicap. You sit down to a
+            short list instead of a stack. It won&apos;t tell you what to bet;
+            it tells you which races fit your game, and says so plainly when
+            none do. The work, done. The decisions, still yours.
           </p>
         </section>
 
@@ -167,7 +167,7 @@ export default function Home() {
           <div className="flex flex-col items-center gap-3 pt-2">
             <Link
               href="/signup"
-              className="rounded-md bg-turf-bright px-6 py-3 text-sm font-semibold text-ink hover:opacity-90"
+              className="w-full rounded-md bg-turf-bright px-6 py-3 text-center text-sm font-semibold text-ink hover:opacity-90 sm:w-auto"
             >
               Get your first digest free
             </Link>
