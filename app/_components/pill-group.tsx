@@ -7,13 +7,36 @@ import type { Option } from '@/lib/onboarding/options';
 // selection in client state and mirrors it into hidden <input>s, so the
 // surrounding native <form> submits exactly as the old checkboxes did.
 
-const pillBase = 'rounded-full px-3.5 py-1.5 text-sm transition-colors';
-const pillActive = 'bg-neutral-100 font-medium text-neutral-900';
+const pillBase =
+  'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm transition-colors';
+const pillActive =
+  'border-transparent bg-neutral-100 font-medium text-neutral-900';
 const pillIdle =
-  'border border-neutral-700 text-neutral-300 hover:border-neutral-500';
+  'border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-neutral-200';
 
-function pillClass(active: boolean): string {
-  return `${pillBase} ${active ? pillActive : pillIdle}`;
+function Pill({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`${pillBase} ${active ? pillActive : pillIdle}`}
+    >
+      {/* Always rendered so the pill keeps a stable width when toggled. */}
+      <span aria-hidden="true" className={active ? '' : 'opacity-0'}>
+        ✓
+      </span>
+      {label}
+    </button>
+  );
 }
 
 /** Multi-select pill group — submits one hidden input per selected value. */
@@ -44,20 +67,14 @@ export function MultiPillGroup({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {options.map((option) => {
-        const active = selected.has(option.value);
-        return (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={active}
-            onClick={() => toggle(option.value)}
-            className={pillClass(active)}
-          >
-            {option.label}
-          </button>
-        );
-      })}
+      {options.map((option) => (
+        <Pill
+          key={option.value}
+          label={option.label}
+          active={selected.has(option.value)}
+          onClick={() => toggle(option.value)}
+        />
+      ))}
       {[...selected].map((value) => (
         <input key={value} type="hidden" name={name} value={value} />
       ))}
@@ -90,20 +107,14 @@ export function SinglePillGroup({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {options.map((option) => {
-        const active = value === option.value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={active}
-            onClick={() => setValue(option.value)}
-            className={pillClass(active)}
-          >
-            {option.label}
-          </button>
-        );
-      })}
+      {options.map((option) => (
+        <Pill
+          key={option.value}
+          label={option.label}
+          active={value === option.value}
+          onClick={() => setValue(option.value)}
+        />
+      ))}
       {value ? <input type="hidden" name={name} value={value} /> : null}
     </div>
   );
