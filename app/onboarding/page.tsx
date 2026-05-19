@@ -1,10 +1,8 @@
 import { redirect } from 'next/navigation';
-import { PreferencesFields } from '@/app/_components/preferences-fields';
-import { SubmitButton } from '@/app/_components/submit-button';
 import { getCanonicalTracks, getUserPreferences } from '@/db/queries';
-import { saveOnboarding } from '@/lib/actions/onboarding';
 import { firstParam, type SearchParams } from '@/lib/search-params';
 import { createClient } from '@/lib/supabase/server';
+import { OnboardingWizard } from './onboarding-wizard';
 
 export default async function OnboardingPage({
   searchParams,
@@ -38,22 +36,14 @@ export default async function OnboardingPage({
             Set up your handicapping profile
           </h1>
           <p className="text-sm text-neutral-400">
-            This tells Furlong which races to surface each morning. You can
-            refine it later.
+            A few quick questions, one at a time. Skip any you don&apos;t want
+            to narrow down.
           </p>
         </header>
 
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
-        <form action={saveOnboarding} className="space-y-6">
-          <PreferencesFields trackOptions={trackOptions} />
-          <SubmitButton
-            pendingText="Saving…"
-            className="w-full rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
-          >
-            Save profile
-          </SubmitButton>
-        </form>
+        <OnboardingWizard trackOptions={trackOptions} />
       </div>
     </main>
   );

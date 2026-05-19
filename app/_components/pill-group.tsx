@@ -13,7 +13,7 @@ const pillActive = 'border-neutral-500 bg-neutral-800 text-neutral-100';
 const pillIdle =
   'border-neutral-800 text-neutral-500 hover:border-neutral-600 hover:text-neutral-300';
 
-function Pill({
+export function Pill({
   label,
   active,
   onClick,
