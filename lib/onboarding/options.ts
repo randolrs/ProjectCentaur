@@ -65,7 +65,15 @@ export const TIMEZONE_OPTIONS = [
   { value: 'Pacific/Honolulu', label: 'Hawaii (HT)' },
 ] as const satisfies readonly Option[];
 
-export const DAYS_PER_WEEK_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
+export const ACTIVE_DAY_OPTIONS = [
+  { value: 'mon', label: 'Mon' },
+  { value: 'tue', label: 'Tue' },
+  { value: 'wed', label: 'Wed' },
+  { value: 'thu', label: 'Thu' },
+  { value: 'fri', label: 'Fri' },
+  { value: 'sat', label: 'Sat' },
+  { value: 'sun', label: 'Sun' },
+] as const satisfies readonly Option[];
 
 // Extract a Zod-enum-ready tuple of `value`s from an options array.
 function enumValues<const T extends readonly Option[]>(
@@ -102,7 +110,9 @@ export const onboardingSchema = z.object({
   betTypes: z
     .array(z.enum(enumValues(BET_TYPE_OPTIONS)))
     .min(1, 'Pick at least one bet type.'),
-  daysPerWeek: z.coerce.number().int().min(1).max(7),
+  activeDays: z
+    .array(z.enum(enumValues(ACTIVE_DAY_OPTIONS)))
+    .min(1, 'Pick at least one day.'),
   timezone: z.enum(enumValues(TIMEZONE_OPTIONS)),
 });
 

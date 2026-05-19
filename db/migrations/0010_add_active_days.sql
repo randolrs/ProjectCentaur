@@ -1,0 +1,1 @@
+ALTER TABLE "user_preferences" ADD COLUMN "active_days" text[] DEFAULT '{"mon","tue","wed","thu","fri","sat","sun"}' NOT NULL;

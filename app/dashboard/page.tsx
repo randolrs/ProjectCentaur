@@ -9,6 +9,7 @@ import {
 } from '@/db/queries';
 import { signOut } from '@/lib/actions/auth';
 import { isAdminEmail } from '@/lib/admin';
+import { ACTIVE_DAY_OPTIONS } from '@/lib/onboarding/options';
 import { isSubscriptionActive } from '@/lib/stripe/subscription';
 import { createClient } from '@/lib/supabase/server';
 
@@ -19,6 +20,15 @@ function formatDate(date: Date): string {
     day: 'numeric',
     year: 'numeric',
   }).format(date);
+}
+
+/** Active days in calendar order, or "Every day" when all seven are on. */
+function formatActiveDays(days: readonly string[]): string {
+  const ordered = ACTIVE_DAY_OPTIONS.filter((option) =>
+    days.includes(option.value),
+  );
+  if (ordered.length === ACTIVE_DAY_OPTIONS.length) return 'Every day';
+  return ordered.map((option) => option.label).join(', ');
 }
 
 export default async function DashboardPage() {
@@ -51,7 +61,7 @@ export default async function DashboardPage() {
     ['Surfaces', prefs.surfaces.join(', ')],
     ['Field size', prefs.fieldSizeBand],
     ['Bet types', prefs.betTypes.join(', ')],
-    ['Days per week', String(prefs.daysPerWeek)],
+    ['Active days', formatActiveDays(prefs.activeDays)],
     ['Timezone', profile?.timezone ?? '—'],
   ];
 

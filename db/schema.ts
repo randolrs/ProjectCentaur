@@ -81,7 +81,10 @@ export const userPreferences = pgTable(
     surfaces: text('surfaces').array().notNull(),
     fieldSizeBand: text('field_size_band').notNull(),
     betTypes: text('bet_types').array().notNull(),
-    daysPerWeek: integer('days_per_week').notNull(),
+    activeDays: text('active_days')
+      .array()
+      .notNull()
+      .default(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

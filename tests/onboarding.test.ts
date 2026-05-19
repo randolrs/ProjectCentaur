@@ -8,16 +8,16 @@ const validInput = {
   surfaces: ['dirt', 'turf'],
   fieldSizeBand: 'medium',
   betTypes: ['win', 'exacta'],
-  daysPerWeek: '4',
+  activeDays: ['mon', 'wed', 'sat'],
   timezone: 'America/New_York',
 };
 
 describe('onboardingSchema', () => {
-  it('accepts a complete, valid submission and coerces daysPerWeek', () => {
+  it('accepts a complete, valid submission', () => {
     const result = onboardingSchema.safeParse(validInput);
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.daysPerWeek).toBe(4);
+      expect(result.data.activeDays).toHaveLength(3);
       expect(result.data.tracks).toHaveLength(2);
     }
   });
@@ -42,12 +42,16 @@ describe('onboardingSchema', () => {
     ).toBe(false);
   });
 
-  it('rejects days per week outside 1-7', () => {
+  it('rejects an empty active-days list', () => {
     expect(
-      onboardingSchema.safeParse({ ...validInput, daysPerWeek: '0' }).success,
+      onboardingSchema.safeParse({ ...validInput, activeDays: [] }).success,
     ).toBe(false);
+  });
+
+  it('rejects an unrecognized day', () => {
     expect(
-      onboardingSchema.safeParse({ ...validInput, daysPerWeek: '9' }).success,
+      onboardingSchema.safeParse({ ...validInput, activeDays: ['funday'] })
+        .success,
     ).toBe(false);
   });
 

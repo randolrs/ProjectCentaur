@@ -36,7 +36,7 @@ export default async function PreferencesPage({
     surfaces: prefs.surfaces,
     fieldSizeBand: prefs.fieldSizeBand,
     betTypes: prefs.betTypes,
-    daysPerWeek: prefs.daysPerWeek,
+    activeDays: prefs.activeDays,
     timezone: profile?.timezone ?? '',
   };
 

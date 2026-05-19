@@ -46,7 +46,7 @@ const prefs: UserPreferencesRow = {
   surfaces: ['dirt'],
   fieldSizeBand: 'small',
   betTypes: ['win', 'exacta'],
-  daysPerWeek: 3,
+  activeDays: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
   createdAt: now,
   updatedAt: now,
 };
