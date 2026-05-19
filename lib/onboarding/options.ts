@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { usRegionStrategy } from '@/lib/racing/regions';
 
 // ---------------------------------------------------------------------------
 // Deterministic onboarding options (SPEC core flow, step 2).
@@ -12,9 +11,6 @@ export interface Option {
   readonly value: string;
   readonly label: string;
 }
-
-/** Tracks covered in v1, sourced from the US region strategy. */
-export const TRACK_OPTIONS: readonly string[] = usRegionStrategy.vocabulary.v1Tracks;
 
 export const RACE_CLASS_OPTIONS = [
   { value: 'maiden', label: 'Maiden' },
@@ -90,13 +86,11 @@ function enumValues<const T extends readonly Option[]>(
 // ---------------------------------------------------------------------------
 
 export const onboardingSchema = z.object({
+  // Track names are validated dynamically against the synced `tracks` table,
+  // not a static list — the onboarding form is built from that same source.
   tracks: z
-    .array(z.string())
-    .min(1, 'Pick at least one track.')
-    .refine(
-      (tracks) => tracks.every((t) => TRACK_OPTIONS.includes(t)),
-      'Unrecognized track.',
-    ),
+    .array(z.string().min(1))
+    .min(1, 'Pick at least one track.'),
   raceClasses: z
     .array(z.enum(enumValues(RACE_CLASS_OPTIONS)))
     .min(1, 'Pick at least one race class.'),

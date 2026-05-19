@@ -19,10 +19,22 @@ import {
   raceEntries,
   races,
   subscriptions,
+  tracks,
   trainers,
   userPreferences,
   users,
 } from './schema';
+
+/** Canonical names of every track ingested into the data model, sorted. */
+export async function getCanonicalTracks(region = 'us'): Promise<string[]> {
+  const db = getDb();
+  const rows = await db
+    .select({ name: tracks.nameCanonical })
+    .from(tracks)
+    .where(eq(tracks.region, region))
+    .orderBy(asc(tracks.nameCanonical));
+  return rows.map((r) => r.name);
+}
 
 /** The user's deterministic onboarding preferences, or null if not onboarded. */
 export async function getUserPreferences(userId: string) {

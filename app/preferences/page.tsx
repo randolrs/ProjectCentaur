@@ -2,7 +2,11 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { PreferencesFields } from '@/app/_components/preferences-fields';
 import { SubmitButton } from '@/app/_components/submit-button';
-import { getUserPreferences, getUserProfile } from '@/db/queries';
+import {
+  getCanonicalTracks,
+  getUserPreferences,
+  getUserProfile,
+} from '@/db/queries';
 import { updatePreferences } from '@/lib/actions/onboarding';
 import { firstParam, type SearchParams } from '@/lib/search-params';
 import { createClient } from '@/lib/supabase/server';
@@ -25,12 +29,14 @@ export default async function PreferencesPage({
     redirect('/onboarding');
   }
   const profile = await getUserProfile(user.id);
+  const trackOptions = await getCanonicalTracks();
 
   const sp = await searchParams;
   const error = firstParam(sp.error);
 
   const current = {
-    tracks: prefs.tracks,
+    // Drop any followed tracks no longer in the synced data model.
+    tracks: prefs.tracks.filter((t) => trackOptions.includes(t)),
     raceClasses: prefs.raceClasses,
     distanceRanges: prefs.distanceRanges,
     surfaces: prefs.surfaces,
@@ -55,7 +61,7 @@ export default async function PreferencesPage({
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
         <form action={updatePreferences} className="space-y-6">
-          <PreferencesFields current={current} />
+          <PreferencesFields current={current} trackOptions={trackOptions} />
           <div className="flex gap-2">
             <SubmitButton
               pendingText="Saving…"

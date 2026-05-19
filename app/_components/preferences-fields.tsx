@@ -7,7 +7,6 @@ import {
   RACE_CLASS_OPTIONS,
   SURFACE_OPTIONS,
   TIMEZONE_OPTIONS,
-  TRACK_OPTIONS,
 } from '@/lib/onboarding/options';
 import { MultiPillGroup, SinglePillGroup } from './pill-group';
 
@@ -46,12 +45,19 @@ function Section({
   );
 }
 
-const TRACK_OPTION_LIST: Option[] = TRACK_OPTIONS.map((track) => ({
-  value: track,
-  label: track,
-}));
+export function PreferencesFields({
+  current,
+  trackOptions,
+}: {
+  current?: PreferenceValues;
+  /** Canonical track names from the synced data model. */
+  trackOptions: readonly string[];
+}) {
+  const trackOptionList: Option[] = trackOptions.map((track) => ({
+    value: track,
+    label: track,
+  }));
 
-export function PreferencesFields({ current }: { current?: PreferenceValues }) {
   return (
     <>
       <Section
@@ -60,8 +66,8 @@ export function PreferencesFields({ current }: { current?: PreferenceValues }) {
       >
         <MultiPillGroup
           name="tracks"
-          options={TRACK_OPTION_LIST}
-          defaultSelected={current ? current.tracks : TRACK_OPTIONS}
+          options={trackOptionList}
+          defaultSelected={current ? current.tracks : trackOptions}
         />
       </Section>
 
