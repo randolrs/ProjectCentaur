@@ -152,4 +152,31 @@ describe('generateDigest', () => {
       generateDigest({ profile, prefs, scored, raceDate: '2026-05-17' }),
     ).rejects.toBeInstanceOf(DigestLlmError);
   });
+
+  it('clamps an over-long reasoning instead of degrading to fallback', async () => {
+    createMock.mockResolvedValueOnce(
+      fakeResponse(
+        JSON.stringify({
+          intro: 'A short sprint card built for your style today.',
+          races: [
+            {
+              race_key: 'us|2026-05-17|Aqueduct|3',
+              headline: 'Aqueduct R3 — lone speed',
+              reasoning: 'x'.repeat(3000),
+            },
+          ],
+        }),
+      ),
+    );
+
+    const result = await generateDigest({
+      profile,
+      prefs,
+      scored,
+      raceDate: '2026-05-17',
+    });
+
+    expect(result.output.races[0]?.reasoning.length).toBeLessThanOrEqual(1500);
+    expect(createMock).toHaveBeenCalledTimes(1);
+  });
 });

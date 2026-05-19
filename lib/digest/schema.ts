@@ -10,17 +10,21 @@ import { z } from 'zod';
 // renderer nor a future dashboard view needs to re-join the `races` table.
 // ---------------------------------------------------------------------------
 
+// Length ceilings are clamped, not rejected: one over-long reasoning from the
+// model shouldn't sink the entire digest into deterministic fallback mode.
+const clampTo = (max: number) => (s: string) => s.slice(0, max);
+
 /** One race's reasoning, as returned by the model. */
 export const DigestRaceReasoningSchema = z.object({
   // Must echo a `race_key` supplied in the prompt.
   race_key: z.string().min(1),
-  headline: z.string().min(3).max(160),
-  reasoning: z.string().min(15).max(800),
+  headline: z.string().min(3).transform(clampTo(240)),
+  reasoning: z.string().min(15).transform(clampTo(1500)),
 });
 
 /** The full model response for a user's daily digest. */
 export const DigestLlmOutputSchema = z.object({
-  intro: z.string().min(10).max(600),
+  intro: z.string().min(10).transform(clampTo(1000)),
   races: z.array(DigestRaceReasoningSchema).min(1).max(12),
 });
 export type DigestLlmOutput = z.infer<typeof DigestLlmOutputSchema>;
