@@ -28,13 +28,6 @@ describe('onboardingSchema', () => {
     ).toBe(false);
   });
 
-  it('rejects a track outside the v1 list', () => {
-    expect(
-      onboardingSchema.safeParse({ ...validInput, tracks: ['Hialeah Park'] })
-        .success,
-    ).toBe(false);
-  });
-
   it('rejects an invalid enum value', () => {
     expect(
       onboardingSchema.safeParse({ ...validInput, fieldSizeBand: 'huge' })

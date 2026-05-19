@@ -20,8 +20,12 @@ import {
 const MODEL = 'claude-sonnet-4-6';
 // Generous ceiling so adaptive thinking has room before the JSON output.
 const MAX_TOKENS = 16000;
-const TIMEOUT_MS = 60_000;
 const MAX_ATTEMPTS = 2;
+// Each attempt gets real time, but the total across attempts is capped under
+// the calling route's 300s maxDuration — a slow model throws OnboardingLlmError
+// (and the caller falls back) instead of a function-level 504.
+const PER_ATTEMPT_TIMEOUT_MS = 150_000;
+const TOTAL_BUDGET_MS = 270_000;
 
 // Sonnet 4.6 list pricing, USD per million tokens.
 const PRICE_INPUT = 3;
@@ -137,8 +141,12 @@ export async function callSonnetForNextTurn(
 
   let total = emptyUsage();
   let lastError = 'unknown error';
+  const startedAt = Date.now();
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    const remaining = TOTAL_BUDGET_MS - (Date.now() - startedAt);
+    // Don't start an attempt there isn't time to finish.
+    if (remaining < 15_000) break;
     try {
       const res = await client.messages.create(
         {
@@ -154,7 +162,7 @@ export async function callSonnetForNextTurn(
           ],
           messages,
         },
-        { timeout: TIMEOUT_MS, maxRetries: 2 },
+        { timeout: Math.min(PER_ATTEMPT_TIMEOUT_MS, remaining), maxRetries: 0 },
       );
 
       total = addUsage(total, usageFromResponse(res.usage));

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { PreferencesFields } from '@/app/_components/preferences-fields';
 import { SubmitButton } from '@/app/_components/submit-button';
-import { getUserPreferences } from '@/db/queries';
+import { getCanonicalTracks, getUserPreferences } from '@/db/queries';
 import { saveOnboarding } from '@/lib/actions/onboarding';
 import { firstParam, type SearchParams } from '@/lib/search-params';
 import { createClient } from '@/lib/supabase/server';
@@ -26,6 +26,7 @@ export default async function OnboardingPage({
     redirect('/onboarding/conversation');
   }
 
+  const trackOptions = await getCanonicalTracks();
   const sp = await searchParams;
   const error = firstParam(sp.error);
 
@@ -45,7 +46,7 @@ export default async function OnboardingPage({
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
         <form action={saveOnboarding} className="space-y-6">
-          <PreferencesFields />
+          <PreferencesFields trackOptions={trackOptions} />
           <SubmitButton
             pendingText="Saving…"
             className="w-full rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
