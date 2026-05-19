@@ -15,8 +15,10 @@ import type { ScoredRace } from './select';
 // ---------------------------------------------------------------------------
 
 const MODEL = 'claude-sonnet-4-6';
-// Headroom for adaptive thinking plus the JSON output of a full digest.
-const MAX_TOKENS = 16000;
+// Output ceiling. Raising this lets adaptive thinking run longer, which
+// can push the call past the per-attempt timeout — 8k is the level the
+// model reliably completes within budget for a full multi-race digest.
+const MAX_TOKENS = 8000;
 const MAX_ATTEMPTS = 2;
 // Each attempt gets real time for a long generation, but the total across
 // attempts is capped under the digest route's 300s maxDuration — a slow model
