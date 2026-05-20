@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { getHandicapperProfile } from '@/db/queries';
+import { trackEvent } from '@/lib/analytics';
 import { triggerImmediateDigest } from '@/lib/digest/pipeline';
 import {
   type ProfileListField,
@@ -42,6 +43,7 @@ export async function confirmProfile(): Promise<void> {
   } = await supabase.auth.getUser();
   if (user) {
     const userId = user.id;
+    after(() => trackEvent(userId, 'profile_confirmed'));
     after(async () => {
       try {
         await triggerImmediateDigest(userId);
