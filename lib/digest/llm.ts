@@ -117,7 +117,11 @@ export async function generateDigest(
         {
           model: MODEL,
           max_tokens: MAX_TOKENS,
-          thinking: { type: 'adaptive' },
+          // Bounded thinking — `adaptive` would let the model burn the whole
+          // token budget thinking on a complex multi-race digest, leaving
+          // nothing for the JSON output. An explicit budget guarantees room
+          // for the actual response.
+          thinking: { type: 'enabled', budget_tokens: 3000 },
           system: [
             {
               type: 'text',
