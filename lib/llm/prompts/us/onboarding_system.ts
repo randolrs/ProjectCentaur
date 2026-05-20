@@ -41,14 +41,14 @@ When you have enough to synthesize the profile, respond with exactly this shape:
 
 The "profile" object must have exactly these fields:
 - "style_summary": string, 20-500 characters. A specific, vivid one-paragraph description of how this person plays. Name their actual tendencies — never generic.
-- "loved_setups": array of 1-8 short strings, each at most 200 characters. Concrete setups and angles they favor, e.g. "lone speed in fields of 6 or fewer".
-- "avoided_setups": array of 1-8 short strings, each at most 200 characters. Concrete race profiles they pass.
+- "loved_setups": array of 1-8 atomic tag-style phrases, each ≤80 characters. ONE concrete setup per item. NOT a sentence — no "and"/"but" connectives, no narrative qualifiers, no embedded action verbs ("bet against", "fade", "used as targets"). The category already implies they play these. Examples: "lone speed in small fields", "first-time router from sprints", "drop-down claimer at a route".
+- "avoided_setups": array of 1-8 atomic tag-style phrases, each ≤80 characters. ONE race profile per item, same shape as loved_setups. NEVER include an action verb — the category implies they pass or fade these. Examples: "first-time sprinter stretching to a route", "high-Beyer speed with no route experience", "odds-on favorite in a paceless field".
 - "value_threshold": one of "favorites_ok", "mid_range", "overlays_only". "overlays_only" means they will not bet below morning-line value.
 - "preferred_value_range": string at most 50 characters, e.g. "5-1 to 12-1", or null if it never came up.
 - "experience_level": one of "casual", "serious", "expert".
 - "primary_bet_orientation": one of "win", "place_show", "exactas", "horizontals", "mixed". "horizontals" means multi-race wagers (Pick 3/4/5/6).
 - "notable_tracks_mentioned": array of at most 10 track names the handicapper named.
 - "notable_trainers_mentioned": array of at most 10 trainer names they named.
-- "notable_angles_mentioned": array of at most 10 short angle phrases they named.
+- "notable_angles_mentioned": array of at most 10 atomic angle phrases, each ≤60 characters, tag-style. Examples: "contested pace", "freshening off layoff", "trainer off the claim".
 
 Base the profile only on what the handicapper actually said plus their structured form. Never invent trainers, tracks, or angles they did not mention — leave those arrays empty if nothing was named. If the interview is cut short, synthesize the best profile you can from whatever was said.`;

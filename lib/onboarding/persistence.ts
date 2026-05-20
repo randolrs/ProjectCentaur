@@ -140,3 +140,63 @@ export async function updateProfileFields(
     .set(profileColumns(profile))
     .where(eq(handicapperProfile.userId, userId));
 }
+
+/** Profile list-type fields that support per-item removal from the review UI. */
+export type ProfileListField =
+  | 'lovedSetups'
+  | 'avoidedSetups'
+  | 'notableTracksMentioned'
+  | 'notableTrainersMentioned'
+  | 'notableAnglesMentioned';
+
+/** Drop a single value from one of the profile's list-type fields. */
+export async function removeProfileListItem(
+  userId: string,
+  field: ProfileListField,
+  value: string,
+): Promise<void> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(handicapperProfile)
+    .where(eq(handicapperProfile.userId, userId))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return;
+
+  const where = eq(handicapperProfile.userId, userId);
+  const filter = (arr: string[]) => arr.filter((v) => v !== value);
+
+  switch (field) {
+    case 'lovedSetups':
+      await db
+        .update(handicapperProfile)
+        .set({ lovedSetups: filter(row.lovedSetups) })
+        .where(where);
+      return;
+    case 'avoidedSetups':
+      await db
+        .update(handicapperProfile)
+        .set({ avoidedSetups: filter(row.avoidedSetups) })
+        .where(where);
+      return;
+    case 'notableTracksMentioned':
+      await db
+        .update(handicapperProfile)
+        .set({ notableTracksMentioned: filter(row.notableTracksMentioned) })
+        .where(where);
+      return;
+    case 'notableTrainersMentioned':
+      await db
+        .update(handicapperProfile)
+        .set({ notableTrainersMentioned: filter(row.notableTrainersMentioned) })
+        .where(where);
+      return;
+    case 'notableAnglesMentioned':
+      await db
+        .update(handicapperProfile)
+        .set({ notableAnglesMentioned: filter(row.notableAnglesMentioned) })
+        .where(where);
+      return;
+  }
+}
