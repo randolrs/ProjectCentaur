@@ -1,7 +1,12 @@
 import Link from 'next/link';
+import { SiteFooter } from '@/app/_components/site-footer';
 import { SubmitButton } from '@/app/_components/submit-button';
+import { Wordmark } from '@/app/_components/wordmark';
 import { signUp } from '@/lib/actions/auth';
 import { firstParam, type SearchParams } from '@/lib/search-params';
+
+const inputClass =
+  'w-full rounded-md border border-paper/15 bg-paper/5 px-3 py-2 text-sm text-paper placeholder:text-paper/30 outline-none focus:border-paper/40';
 
 export default async function SignupPage({
   searchParams,
@@ -12,59 +17,69 @@ export default async function SignupPage({
   const error = firstParam(sp.error);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 px-6 py-16 text-neutral-100">
-      <div className="w-full max-w-sm space-y-6">
-        <h1 className="text-xl font-semibold tracking-tight">
-          Create your account
-        </h1>
+    <div className="flex min-h-screen flex-col bg-ink text-paper">
+      <header className="mx-auto flex w-full max-w-2xl items-center justify-between px-6 py-6">
+        <Link href="/">
+          <Wordmark className="text-paper" />
+        </Link>
+      </header>
 
-        <form action={signUp} className="space-y-4">
-          <div className="space-y-1">
-            <label htmlFor="email" className="block text-sm font-medium">
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-            />
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="password" className="block text-sm font-medium">
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-            />
-            <p className="text-xs text-neutral-500">At least 8 characters.</p>
-          </div>
-          <SubmitButton
-            pendingText="Creating account…"
-            className="w-full rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
-          >
-            Sign up
-          </SubmitButton>
-        </form>
+      <main className="flex flex-1 items-center justify-center px-6 pb-12">
+        <div className="w-full max-w-sm space-y-6">
+          <h1 className="font-serif text-3xl font-semibold tracking-tight">
+            Create your account
+          </h1>
 
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+          <form action={signUp} className="space-y-4">
+            <div className="space-y-1">
+              <label htmlFor="email" className="block text-sm font-medium">
+                Email
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+                className={inputClass}
+              />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="password" className="block text-sm font-medium">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                className={inputClass}
+              />
+              <p className="text-xs text-paper/45">At least 8 characters.</p>
+            </div>
+            <SubmitButton
+              pendingText="Creating account…"
+              className="w-full rounded-md bg-turf-bright px-4 py-2.5 text-sm font-semibold text-ink hover:opacity-90 disabled:opacity-50"
+            >
+              Sign up
+            </SubmitButton>
+          </form>
 
-        <p className="text-sm text-neutral-400">
-          Already have an account?{' '}
-          <Link href="/login" className="text-neutral-200 underline">
-            Log in
-          </Link>
-          .
-        </p>
-      </div>
-    </main>
+          {error ? <p className="text-sm text-red-400">{error}</p> : null}
+
+          <p className="text-sm text-paper/65">
+            Already have an account?{' '}
+            <Link href="/login" className="text-turf-bright hover:underline">
+              Log in
+            </Link>
+            .
+          </p>
+        </div>
+      </main>
+
+      <SiteFooter />
+    </div>
   );
 }
