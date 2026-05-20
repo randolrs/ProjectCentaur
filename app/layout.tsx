@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
-import type { ReactNode } from 'react';
+import { type ReactNode, Suspense } from 'react';
+import { AnalyticsProvider } from '@/app/_analytics/analytics-provider';
+import { IdentifyUser } from '@/app/_analytics/identify-user';
+import { PageviewTracker } from '@/app/_analytics/pageview-tracker';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -10,7 +13,15 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <AnalyticsProvider>
+          <Suspense fallback={null}>
+            <PageviewTracker />
+          </Suspense>
+          <IdentifyUser />
+          {children}
+        </AnalyticsProvider>
+      </body>
     </html>
   );
 }

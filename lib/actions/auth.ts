@@ -1,7 +1,9 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { z } from 'zod';
+import { trackEvent } from '@/lib/analytics';
 import { createClient } from '@/lib/supabase/server';
 
 const credentialsSchema = z.object({
@@ -29,6 +31,12 @@ export async function signUp(formData: FormData): Promise<void> {
   const { data, error } = await supabase.auth.signUp(parsed.data);
   if (error) {
     errorRedirect('/signup', error.message);
+  }
+
+  if (data.user) {
+    const userId = data.user.id;
+    const email = parsed.data.email;
+    after(() => trackEvent(userId, 'signup_completed', { email }));
   }
 
   // With email confirmation enabled, no session is returned until the user

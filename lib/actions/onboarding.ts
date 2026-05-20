@@ -1,8 +1,10 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { getDb } from '@/db';
 import { userPreferences, users } from '@/db/schema';
+import { trackEvent } from '@/lib/analytics';
 import {
   type OnboardingInput,
   onboardingSchema,
@@ -74,6 +76,14 @@ export async function saveOnboarding(formData: FormData): Promise<void> {
   }
 
   await persistPreferences(user.id, user.email ?? '', parsed.data);
+
+  const userId = user.id;
+  after(() =>
+    trackEvent(userId, 'onboarding_completed', {
+      tracks_count: parsed.data.tracks.length,
+      race_classes_count: parsed.data.raceClasses.length,
+    }),
+  );
 
   // Structured answers saved — continue to the M2 conversational onboarding.
   redirect('/onboarding/conversation');

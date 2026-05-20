@@ -11,6 +11,7 @@ import { getDigest, recordDigest } from './persistence';
 import { buildRenderedDigest } from './render';
 import { isUserDue, localParts, localWeekday } from './schedule';
 import { selectRacesForUser } from './select';
+import { trackEvent } from '@/lib/analytics';
 import { sendEmail } from '@/lib/email/resend';
 import { getSiteUrl } from '@/lib/env';
 import { isSubscriptionActive } from '@/lib/stripe/subscription';
@@ -155,6 +156,16 @@ export async function runDigestForUser(
     resendId,
     error: error ?? null,
   });
+
+  if (outcome === 'sent') {
+    await trackEvent(user.id, 'digest_sent', {
+      race_date: raceDate,
+      race_count: scored.length,
+      generated_by: digest.generatedBy,
+      subscribed,
+      cost_usd: costUsd,
+    });
+  }
 
   return {
     ...base,

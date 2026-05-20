@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { getUserPreferences } from '@/db/queries';
+import { trackEvent } from '@/lib/analytics';
 import { synthesizeFallbackProfile } from '@/lib/onboarding/fallback';
 import { callSonnetForNextTurn } from '@/lib/onboarding/llm';
 import {
@@ -113,6 +114,12 @@ export async function finishConversation(turnsRaw: unknown): Promise<void> {
   // Keep the transcript on record so the review screen can tell that a
   // synthesis is in progress (the row is deleted once the profile lands).
   await saveConversationTurns(userId, turns, 0);
+
+  after(() =>
+    trackEvent(userId, 'conversation_completed', {
+      turns: turns.length,
+    }),
+  );
 
   after(async () => {
     let profile = synthesizeFallbackProfile(prefs);
