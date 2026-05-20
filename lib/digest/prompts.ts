@@ -35,8 +35,9 @@ function profileSection(
 
 /**
  * One runner line for the digest prompt: program number, horse, ML odds,
- * and the field detail a handicapper reads — jockey, trainer, weight, and
- * any medication / equipment. Absent fields are omitted cleanly.
+ * and the field detail a handicapper reads — jockey, trainer, post
+ * position, weight, and any medication / equipment. Absent fields are
+ * omitted cleanly.
  */
 export function runnerLine(runner: Runner): string {
   const number = runner.programNumber ? `${runner.programNumber}. ` : '';
@@ -47,6 +48,7 @@ export function runnerLine(runner: Runner): string {
     runner.trainer ? `T ${runner.trainer.name}` : null,
   ].filter((part): part is string => part !== null);
   const extras = [
+    runner.postPosition ? `PP ${runner.postPosition}` : null,
     runner.weight ? `${runner.weight} lbs` : null,
     runner.medication,
     runner.equipment,
@@ -57,17 +59,58 @@ export function runnerLine(runner: Runner): string {
   return `    ${number}${name}${odds}${detail ? ` — ${detail}` : ''}`;
 }
 
+/** Read a number from a raw provider field that may arrive as number or string. */
+function pickAmount(raw: unknown, key: string): number | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const value = (raw as Record<string, unknown>)[key];
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+/** Format a US dollar amount compactly — $5,000 → $5K, $7,500 → $7.5K. */
+function dollarsCompact(amount: number): string {
+  if (amount >= 1000 && amount % 1000 === 0) return `$${amount / 1000}K`;
+  if (amount >= 1000) return `$${(amount / 1000).toFixed(1)}K`;
+  return `$${amount.toLocaleString('en-US')}`;
+}
+
+/** "claim $5K-$10K" / "claim $5K" — the actual class tag of a claiming race. */
+function claimRangeText(min: number | null, max: number | null): string | null {
+  if (min === null && max === null) return null;
+  if (min !== null && max !== null) {
+    return min === max
+      ? `claim ${dollarsCompact(min)}`
+      : `claim ${dollarsCompact(min)}-${dollarsCompact(max)}`;
+  }
+  const single = (min ?? max) as number;
+  return `claim ${dollarsCompact(single)}`;
+}
+
 function raceSection(scored: ScoredRace): string {
   const { race } = scored;
   const number = race.raceNumber === null ? '' : ` Race ${race.raceNumber}`;
   const post = race.postTime ? ` · post ${race.postTime}` : '';
   const live = race.runners.filter((r) => !r.scratched).slice(0, 14);
+
+  const claim = claimRangeText(
+    pickAmount(race.rawData, 'min_claim_price'),
+    pickAmount(race.rawData, 'max_claim_price'),
+  );
+  const purseText = race.purse
+    ? ` · purse $${race.purse.toLocaleString('en-US')}`
+    : '';
+  const claimText = claim ? ` · ${claim}` : '';
+
   return [
     `[race_key: ${race.key}]`,
     `${race.track}${number}${post}`,
     `  ${race.raceClass ?? 'Class n/a'} · ${race.surface ?? 'Surface n/a'} · ` +
       `${race.distance ?? 'Distance n/a'} · field of ${race.fieldSize}` +
-      (race.purse ? ` · purse $${race.purse.toLocaleString('en-US')}` : ''),
+      `${purseText}${claimText}`,
     race.conditions ? `  Conditions: ${race.conditions}` : null,
     `  Cleared your filters because: ${scored.matchReasons.join('; ')}.`,
     live.length > 0 ? '  Runners:' : '  Runners: none listed',
