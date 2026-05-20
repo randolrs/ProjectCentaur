@@ -10,11 +10,13 @@ import { DigestLlmError, generateDigest } from './llm';
 import { getDigest, recordDigest } from './persistence';
 import { buildRenderedDigest } from './render';
 import { isUserDue, localParts, localWeekday } from './schedule';
-import { selectRacesForUser } from './select';
+import { type ScoredRace, selectRacesForUser } from './select';
 import { trackEvent } from '@/lib/analytics';
 import { sendEmail } from '@/lib/email/resend';
 import { getSiteUrl } from '@/lib/env';
 import { isSubscriptionActive } from '@/lib/stripe/subscription';
+import { TRACK_COORDINATES } from '@/lib/weather/coordinates';
+import { getCachedForecast } from '@/lib/weather/nws';
 
 // ---------------------------------------------------------------------------
 // Digest pipeline orchestration.
@@ -79,6 +81,26 @@ export interface DigestRunSummary {
   results: UserDigestResult[];
 }
 
+/** Attach the NWS forecast for each distinct track to its scored races. */
+async function attachWeather(
+  scored: readonly ScoredRace[],
+  raceDate: string,
+): Promise<ScoredRace[]> {
+  const distinctTracks = Array.from(new Set(scored.map((s) => s.race.track)));
+  const forecasts = new Map<string, Awaited<ReturnType<typeof getCachedForecast>>>();
+  await Promise.all(
+    distinctTracks.map(async (track) => {
+      const coords = TRACK_COORDINATES[track];
+      if (!coords) return;
+      forecasts.set(track, await getCachedForecast(track, coords, raceDate));
+    }),
+  );
+  return scored.map((entry) => ({
+    ...entry,
+    weather: forecasts.get(entry.race.track) ?? null,
+  }));
+}
+
 /**
  * Build and deliver one user's digest for a racing day. Always records a
  * `digests` row; never throws — delivery and model failures are captured in
@@ -92,7 +114,11 @@ export async function runDigestForUser(
   const base = { userId: user.id, email: user.email, raceDate };
 
   const races = await getRacesForTracks(raceDate, prefs.tracks);
-  const scored = selectRacesForUser(prefs, races).slice(0, MAX_RACES_PER_DIGEST);
+  const baseScored = selectRacesForUser(prefs, races).slice(
+    0,
+    MAX_RACES_PER_DIGEST,
+  );
+  const scored = await attachWeather(baseScored, raceDate);
 
   if (scored.length === 0) {
     await recordDigest({

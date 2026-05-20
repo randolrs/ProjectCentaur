@@ -1,6 +1,7 @@
 import type { HandicapperProfileRow, UserPreferencesRow } from '@/db/schema';
 import { DIGEST_SYSTEM_PROMPT } from '@/lib/llm/prompts/us/digest_system';
 import type { Runner } from '@/lib/racing/types';
+import { formatForecast } from '@/lib/weather/nws';
 import type { ScoredRace } from './select';
 
 // Region-agnostic accessors for the digest prompts. v1 is US-only.
@@ -112,6 +113,7 @@ function raceSection(scored: ScoredRace): string {
       `${race.distance ?? 'Distance n/a'} · field of ${race.fieldSize}` +
       `${purseText}${claimText}`,
     race.conditions ? `  Conditions: ${race.conditions}` : null,
+    scored.weather ? `  Weather: ${formatForecast(scored.weather)}` : null,
     `  Cleared your filters because: ${scored.matchReasons.join('; ')}.`,
     live.length > 0 ? '  Runners:' : '  Runners: none listed',
     ...live.map(runnerLine),
