@@ -29,9 +29,9 @@ function runner(overrides: Partial<Runner> = {}): Runner {
 }
 
 describe('runnerLine', () => {
-  it('renders the full field detail — odds, connections, weight, gear', () => {
+  it('renders the full field detail — odds, connections, PP, weight, gear', () => {
     expect(runnerLine(runner())).toBe(
-      '    1. Al Amjaad (ML 4-1) — J Jose Ortiz / T Joe Sharp · 118 lbs · L · Blk-O',
+      '    1. Al Amjaad (ML 4-1) — J Jose Ortiz / T Joe Sharp · PP 1 · 118 lbs · L · Blk-O',
     );
   });
 
@@ -45,6 +45,6 @@ describe('runnerLine', () => {
         equipment: null,
       }),
     );
-    expect(line).toBe('    1. Al Amjaad — T Joe Sharp');
+    expect(line).toBe('    1. Al Amjaad — T Joe Sharp · PP 1');
   });
 });
