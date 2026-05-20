@@ -8,6 +8,7 @@ import { firstParam, type SearchParams } from '@/lib/search-params';
 import { createClient } from '@/lib/supabase/server';
 import { SubmitButton } from '@/app/_components/submit-button';
 import { confirmProfile, saveProfileEdits } from './actions';
+import { EditableList } from './editable-list';
 import { ProfileBuilding } from './profile-building';
 
 // Confirming onboarding triggers the user's first digest — an LLM call and
@@ -52,19 +53,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Bullets({ items }: { items: string[] }) {
-  if (items.length === 0) {
-    return <p className="text-sm text-neutral-500">None captured.</p>;
-  }
-  return (
-    <ul className="list-disc space-y-1 pl-5 text-sm text-neutral-100">
-      {items.map((item) => (
-        <li key={item}>{item}</li>
-      ))}
-    </ul>
-  );
-}
-
 function SummaryView({ profile }: { profile: HandicapperProfileRow }) {
   return (
     <div className="space-y-6">
@@ -84,12 +72,12 @@ function SummaryView({ profile }: { profile: HandicapperProfileRow }) {
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Setups you look for</h2>
-        <Bullets items={profile.lovedSetups} />
+        <EditableList field="lovedSetups" items={profile.lovedSetups} />
       </section>
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Setups you pass on</h2>
-        <Bullets items={profile.avoidedSetups} />
+        <EditableList field="avoidedSetups" items={profile.avoidedSetups} />
       </section>
 
       <dl className="divide-y divide-neutral-800 rounded-md border border-neutral-800">
@@ -102,18 +90,6 @@ function SummaryView({ profile }: { profile: HandicapperProfileRow }) {
               'Mainly bets',
               BET_ORIENTATION_LABELS[profile.primaryBetOrientation],
             ],
-            [
-              'Tracks mentioned',
-              profile.notableTracksMentioned.join(', ') || '—',
-            ],
-            [
-              'Trainers mentioned',
-              profile.notableTrainersMentioned.join(', ') || '—',
-            ],
-            [
-              'Angles mentioned',
-              profile.notableAnglesMentioned.join(', ') || '—',
-            ],
           ] as ReadonlyArray<readonly [string, string]>
         ).map(([label, value]) => (
           <div key={label} className="flex gap-4 px-4 py-3 text-sm">
@@ -122,6 +98,33 @@ function SummaryView({ profile }: { profile: HandicapperProfileRow }) {
           </div>
         ))}
       </dl>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold">Tracks mentioned</h2>
+        <EditableList
+          field="notableTracksMentioned"
+          items={profile.notableTracksMentioned}
+          emptyLabel="None mentioned."
+        />
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold">Trainers mentioned</h2>
+        <EditableList
+          field="notableTrainersMentioned"
+          items={profile.notableTrainersMentioned}
+          emptyLabel="None mentioned."
+        />
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold">Angles mentioned</h2>
+        <EditableList
+          field="notableAnglesMentioned"
+          items={profile.notableAnglesMentioned}
+          emptyLabel="None mentioned."
+        />
+      </section>
 
       <div className="flex items-center gap-3">
         <form action={confirmProfile}>

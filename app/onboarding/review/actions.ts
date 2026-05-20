@@ -4,7 +4,11 @@ import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { getHandicapperProfile } from '@/db/queries';
 import { triggerImmediateDigest } from '@/lib/digest/pipeline';
-import { updateProfileFields } from '@/lib/onboarding/persistence';
+import {
+  type ProfileListField,
+  removeProfileListItem as removeListItem,
+  updateProfileFields,
+} from '@/lib/onboarding/persistence';
 import { HandicapperProfileSchema } from '@/lib/onboarding/schema';
 import { createClient } from '@/lib/supabase/server';
 
@@ -98,4 +102,17 @@ export async function saveProfileEdits(formData: FormData): Promise<void> {
 
   await updateProfileFields(user.id, parsed.data);
   redirect('/onboarding/review');
+}
+
+/** Remove a single item from one of the profile's list fields (review screen). */
+export async function removeProfileListItem(
+  field: ProfileListField,
+  value: string,
+): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  await removeListItem(user.id, field, value);
 }
