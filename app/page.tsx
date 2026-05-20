@@ -66,13 +66,11 @@ export default function Home() {
         {/* Hero */}
         <section className="space-y-5">
           <h1 className="font-serif text-4xl font-semibold leading-[1.15] tracking-tight sm:text-5xl">
-            Stop scanning 200 races to find the five that matter.
+            The few races worth your morning.
           </h1>
           <p className="text-base leading-relaxed text-paper/70">
-            Furlong learns how you handicap — your tracks, your classes, the
-            setups you live for — then analyzes every card each morning and
-            emails you the races that fit your game. A digest built around the
-            way you play, not a generic tip sheet.
+            Furlong reads every card at your tracks against how you handicap,
+            and emails you only the races built for your game.
           </p>
           <div className="flex flex-col items-start gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
             <Link
@@ -90,7 +88,7 @@ export default function Home() {
         {/* Sample digest — rendered as the artifact itself */}
         <section className="space-y-4">
           <h2 className="font-serif text-xl font-semibold">
-            A digest built around how you play
+            Here&apos;s what a morning looks like
           </h2>
           <div className="rounded-lg bg-paper p-7 text-ink shadow-xl shadow-black/40">
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-turf">
