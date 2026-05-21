@@ -1,6 +1,6 @@
 import type { IngestDaySummary } from '@/db/queries';
 import type { DigestRunSummary, UserDigestResult } from '@/lib/digest/pipeline';
-import type { IngestResult } from '@/lib/racing/ingest';
+import type { BackfillResult, IngestResult } from '@/lib/racing/ingest';
 
 export type AdminActionResult<T> =
   | { ok: true; data: T }
@@ -10,3 +10,4 @@ export type IngestActionResult = AdminActionResult<IngestResult>;
 export type DigestActionResult = AdminActionResult<DigestRunSummary>;
 export type IngestDayActionResult = AdminActionResult<IngestDaySummary>;
 export type EmailDigestActionResult = AdminActionResult<UserDigestResult>;
+export type BackfillActionResult = AdminActionResult<BackfillResult>;

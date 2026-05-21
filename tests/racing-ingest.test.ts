@@ -9,6 +9,7 @@ import {
   parseDistanceFurlongs,
 } from '@/lib/racing/canonical';
 import {
+  deriveResultPlacements,
   horseNaturalKey,
   personNaturalKey,
   racecardKey,
@@ -17,6 +18,7 @@ import {
 import { usRegionStrategy } from '@/lib/racing/regions';
 import {
   naEntriesResponseSchema,
+  type NaResultRace,
   type Person,
   type Racecard,
   type RawUsRacecardData,
@@ -204,5 +206,37 @@ describe('personNaturalKey', () => {
     expect(personNaturalKey(person({ name: 'Joe  Sharp' }))).toBe(
       'name:joe sharp',
     );
+  });
+});
+
+describe('deriveResultPlacements', () => {
+  // Mirrors the live shape: in-the-money runners carry win/place/show payoffs,
+  // with position implied by which payoff is non-zero.
+  const race: NaResultRace = {
+    runners: [
+      { program_number: '3', win_payoff: 4.7, place_payoff: 2.9, show_payoff: 2.1 },
+      { program_number: '4', win_payoff: 0, place_payoff: 4.1, show_payoff: 3.1 },
+      { program_number: '5', win_payoff: 0, place_payoff: 0, show_payoff: 2.1 },
+      { program_number: '2', win_payoff: 0, place_payoff: 0, show_payoff: 0 },
+    ],
+    track_condition_description: 'Fast',
+  };
+
+  it('maps win/place/show payoffs to finishing positions 1-3', () => {
+    expect(deriveResultPlacements(race)).toEqual([
+      { programNumber: '3', position: 1 },
+      { programNumber: '4', position: 2 },
+      { programNumber: '5', position: 3 },
+    ]);
+  });
+
+  it('omits off-the-board runners and parses string payoffs', () => {
+    const result = deriveResultPlacements({
+      runners: [
+        { program_number: '1', win_payoff: '6.40', place_payoff: '3.20', show_payoff: '2.80' },
+        { program_number: '7', win_payoff: null, place_payoff: null, show_payoff: null },
+      ],
+    });
+    expect(result).toEqual([{ programNumber: '1', position: 1 }]);
   });
 });

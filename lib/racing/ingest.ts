@@ -1,8 +1,11 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import {
+  getMeetRaceIndexForDate,
   getTracksMissingCoordinates,
+  recordRaceResults,
   setTrackCoordinates,
+  type RacePlacement,
 } from '@/db/queries';
 import {
   horses,
@@ -28,8 +31,8 @@ import {
   normalizeNameKey,
   parseDistanceFurlongs,
 } from './canonical';
-import { usRegionStrategy } from './regions';
-import type { Person, Racecard, Runner } from './types';
+import { usRegionStrategy, usToday } from './regions';
+import type { NaResultRace, Person, Racecard, Runner } from './types';
 import { TRACK_COORDINATES } from '@/lib/weather/coordinates';
 import { geocodeTrack } from '@/lib/weather/geocode';
 
@@ -421,12 +424,13 @@ export async function ingestRacecards(
   });
 }
 
-/** Fetch, normalize, and persist today's US racecards. */
-export async function ingestTodaysUsRaces(
+/** Fetch, normalize, and persist one US racing day's racecards (YYYY-MM-DD). */
+export async function ingestUsRacesForDate(
+  date: string,
   client?: RacingApiClient,
 ): Promise<IngestResult> {
   const api = client ?? RacingApiClient.fromEnv();
-  const raw = await usRegionStrategy.dataFetch(api);
+  const raw = await usRegionStrategy.dataFetch(api, date);
   const cards = usRegionStrategy.raceNormalization(raw);
   const result = await ingestRacecards(cards, raw.date);
   // Fill coordinates for any track seen for the first time, so it gets
@@ -438,4 +442,199 @@ export async function ingestTodaysUsRaces(
     console.error(`[ingest] track coordinate backfill failed: ${message}`);
   }
   return result;
+}
+
+/** Fetch, normalize, and persist today's US racecards. */
+export async function ingestTodaysUsRaces(
+  client?: RacingApiClient,
+): Promise<IngestResult> {
+  return ingestUsRacesForDate(usToday(), client);
+}
+
+// ---------------------------------------------------------------------------
+// Results ingestion
+//
+// After a race finishes, the provider exposes its results at a separate
+// endpoint. Finishing order isn't an explicit field: a finished race lists
+// its in-the-money runners with win/place/show payoffs, so position is which
+// payoff is non-zero (win → 1st, place-only → 2nd, show-only → 3rd). Horses
+// off the board carry no payoff and are left unplaced. Results are matched
+// back onto our `race_entries` by (meet, race number, program number).
+// ---------------------------------------------------------------------------
+
+/** Coerce a payoff that the provider may serialise as a number or string. */
+function toPayoff(value: number | string | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Derive finishing positions (1-3) for a finished race from its payoffs. */
+export function deriveResultPlacements(race: NaResultRace): RacePlacement[] {
+  const placements: RacePlacement[] = [];
+  for (const runner of race.runners) {
+    const programNumber = runner.program_number?.trim();
+    if (!programNumber) continue;
+    const win = toPayoff(runner.win_payoff);
+    const place = toPayoff(runner.place_payoff);
+    const show = toPayoff(runner.show_payoff);
+    const position = win > 0 ? 1 : place > 0 ? 2 : show > 0 ? 3 : null;
+    if (position !== null) placements.push({ programNumber, position });
+  }
+  return placements;
+}
+
+export interface ResultsIngestResult {
+  date: string;
+  meets: number;
+  racesUpdated: number;
+  entriesPlaced: number;
+  errors: number;
+}
+
+/**
+ * Ingest finishing results for a past racing day onto the entries we already
+ * hold. For each meet we stored that day, fetch its results and stamp every
+ * matched race's entries. Each meet is isolated — one failure (e.g. a meet
+ * with no results yet) never aborts the run.
+ */
+export async function ingestResultsForDate(
+  date: string,
+  client?: RacingApiClient,
+): Promise<ResultsIngestResult> {
+  const api = client ?? RacingApiClient.fromEnv();
+  const index = await getMeetRaceIndexForDate(date);
+
+  // providerMeetId -> (raceNumber -> our raceId).
+  const byMeet = new Map<string, Map<number, string>>();
+  for (const row of index) {
+    if (row.raceNumber === null) continue;
+    let raceMap = byMeet.get(row.providerMeetId);
+    if (!raceMap) {
+      raceMap = new Map();
+      byMeet.set(row.providerMeetId, raceMap);
+    }
+    raceMap.set(row.raceNumber, row.raceId);
+  }
+
+  let racesUpdated = 0;
+  let entriesPlaced = 0;
+  let errors = 0;
+  for (const [providerMeetId, raceMap] of byMeet) {
+    try {
+      const results = await api.getNorthAmericaResults(providerMeetId);
+      for (const race of results.races) {
+        const raceNumber = Number(race.race_key?.race_number);
+        if (!Number.isFinite(raceNumber)) continue;
+        const raceId = raceMap.get(raceNumber);
+        if (!raceId) continue;
+        const placements = deriveResultPlacements(race);
+        await recordRaceResults(raceId, placements);
+        racesUpdated += 1;
+        entriesPlaced += placements.length;
+      }
+    } catch (error) {
+      errors += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[results] meet ${providerMeetId} failed: ${message}`);
+    }
+  }
+
+  console.log(
+    `[results] date=${date} meets=${byMeet.size} ` +
+      `racesUpdated=${racesUpdated} entriesPlaced=${entriesPlaced} errors=${errors}`,
+  );
+  return { date, meets: byMeet.size, racesUpdated, entriesPlaced, errors };
+}
+
+// ---------------------------------------------------------------------------
+// Historical backfill
+//
+// "Results memory" is only useful once horses have a multi-race history, so we
+// bootstrap it by replaying past racing days: ingest each day's cards, then
+// its results. The full window is far more work than one request's time
+// budget, so a run processes days (newest first) until the budget is spent
+// and returns a cursor; the caller re-invokes from `nextDate`. Every step is
+// idempotent, so resuming — or rerunning — is safe.
+// ---------------------------------------------------------------------------
+
+/** Shift a YYYY-MM-DD date by whole days (UTC). */
+function shiftDate(date: string, deltaDays: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + deltaDays);
+  return d.toISOString().slice(0, 10);
+}
+
+export interface BackfillResult {
+  /** Most-recent day this invocation started from. */
+  startDate: string;
+  /** Days processed this invocation, newest first. */
+  processed: string[];
+  entries: number;
+  racesUpdated: number;
+  entriesPlaced: number;
+  errors: number;
+  /** True once the whole requested window has been covered. */
+  done: boolean;
+  /** Most-recent unprocessed day to resume from, or null when done. */
+  nextDate: string | null;
+  /** Days still remaining when the budget ran out, for the resume call. */
+  remainingDays: number;
+}
+
+/**
+ * Backfill `days` racing days ending at `startDate` (default: the prior
+ * racing day), newest first, ingesting each day's cards and results. Stops
+ * when `budgetMs` of wall-clock is spent and returns a resume cursor.
+ */
+export async function backfillHistory(opts: {
+  days: number;
+  startDate?: string;
+  budgetMs?: number;
+  client?: RacingApiClient;
+}): Promise<BackfillResult> {
+  const { days } = opts;
+  const startDate =
+    opts.startDate ?? usToday(new Date(Date.now() - 24 * 60 * 60 * 1000));
+  const budgetMs = opts.budgetMs ?? 240_000;
+  const api = opts.client ?? RacingApiClient.fromEnv();
+  const began = Date.now();
+
+  const processed: string[] = [];
+  let entries = 0;
+  let racesUpdated = 0;
+  let entriesPlaced = 0;
+  let errors = 0;
+
+  let i = 0;
+  for (; i < days; i += 1) {
+    if (i > 0 && Date.now() - began > budgetMs) break;
+    const date = shiftDate(startDate, -i);
+    try {
+      const ingested = await ingestUsRacesForDate(date, api);
+      entries += ingested.entries;
+      const results = await ingestResultsForDate(date, api);
+      racesUpdated += results.racesUpdated;
+      entriesPlaced += results.entriesPlaced;
+      errors += results.errors;
+    } catch (error) {
+      errors += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[backfill] ${date} failed: ${message}`);
+    }
+    processed.push(date);
+  }
+
+  const done = i >= days;
+  return {
+    startDate,
+    processed,
+    entries,
+    racesUpdated,
+    entriesPlaced,
+    errors,
+    done,
+    nextDate: done ? null : shiftDate(startDate, -i),
+    remainingDays: done ? 0 : days - i,
+  };
 }

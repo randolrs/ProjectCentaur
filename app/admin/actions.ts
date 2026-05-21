@@ -8,9 +8,10 @@ import {
   runHourlyDigest,
 } from '@/lib/digest/pipeline';
 import { localParts } from '@/lib/digest/schedule';
-import { ingestTodaysUsRaces } from '@/lib/racing/ingest';
+import { backfillHistory, ingestTodaysUsRaces } from '@/lib/racing/ingest';
 import { createClient } from '@/lib/supabase/server';
 import type {
+  BackfillActionResult,
   DigestActionResult,
   EmailDigestActionResult,
   IngestActionResult,
@@ -56,6 +57,29 @@ export async function triggerDigest(force: boolean): Promise<DigestActionResult>
   try {
     const summary = force ? await runDigestForAllUsers() : await runHourlyDigest();
     return { ok: true, data: summary };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/**
+ * Backfill historical cards + results, newest first, to bootstrap results
+ * memory. Processes one budgeted chunk per call and returns a cursor; the
+ * caller re-invokes from `nextDate` with `remainingDays` until `done`.
+ */
+export async function triggerHistoryBackfill(
+  days: number,
+  startDate?: string,
+): Promise<BackfillActionResult> {
+  if (!(await isCallerAdmin())) return { ok: false, error: 'Not authorized.' };
+  if (!Number.isInteger(days) || days < 1 || days > 120) {
+    return { ok: false, error: 'Days must be between 1 and 120.' };
+  }
+  if (startDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+    return { ok: false, error: 'Start date must be YYYY-MM-DD.' };
+  }
+  try {
+    return { ok: true, data: await backfillHistory({ days, startDate }) };
   } catch (error) {
     return fail(error);
   }

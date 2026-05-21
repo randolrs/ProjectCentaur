@@ -7,6 +7,7 @@ import {
   getIngestedDay,
   triggerDigest,
   triggerDigestForEmail,
+  triggerHistoryBackfill,
   triggerIngest,
 } from './actions';
 import type {
@@ -15,6 +16,16 @@ import type {
   IngestActionResult,
   IngestDayActionResult,
 } from './types';
+
+interface BackfillProgress {
+  processedDays: number;
+  entries: number;
+  racesUpdated: number;
+  entriesPlaced: number;
+  errors: number;
+  lastDate: string | null;
+  done: boolean;
+}
 
 /** Today's date as YYYY-MM-DD for the date picker default. */
 function todayIso(): string {
@@ -101,10 +112,52 @@ export function AdminConsole({ email }: { email: string }) {
   const [targetEmail, setTargetEmail] = useState('');
   const [emailResult, setEmailResult] =
     useState<EmailDigestActionResult | null>(null);
+  const [backfillDays, setBackfillDays] = useState(60);
+  const [backfillError, setBackfillError] = useState<string | null>(null);
+  const [backfill, setBackfill] = useState<BackfillProgress | null>(null);
 
   async function runIngest() {
     setBusy('ingest');
     setIngest(await triggerIngest());
+    setBusy(null);
+  }
+
+  // Drive the resumable backfill chunk by chunk until the whole window is
+  // covered, accumulating progress across each budgeted server call.
+  async function runBackfill() {
+    setBusy('backfill');
+    setBackfillError(null);
+    const totals: BackfillProgress = {
+      processedDays: 0,
+      entries: 0,
+      racesUpdated: 0,
+      entriesPlaced: 0,
+      errors: 0,
+      lastDate: null,
+      done: false,
+    };
+    setBackfill({ ...totals });
+    let remaining = backfillDays;
+    let cursor: string | undefined;
+    for (let chunk = 0; remaining > 0 && chunk < 120; chunk += 1) {
+      const res = await triggerHistoryBackfill(remaining, cursor);
+      if (!res.ok) {
+        setBackfillError(res.error);
+        break;
+      }
+      const d = res.data;
+      totals.processedDays += d.processed.length;
+      totals.entries += d.entries;
+      totals.racesUpdated += d.racesUpdated;
+      totals.entriesPlaced += d.entriesPlaced;
+      totals.errors += d.errors;
+      totals.lastDate = d.processed.at(-1) ?? totals.lastDate;
+      totals.done = d.done;
+      setBackfill({ ...totals });
+      if (d.done || !d.nextDate) break;
+      cursor = d.nextDate;
+      remaining = d.remainingDays;
+    }
     setBusy(null);
   }
 
@@ -181,6 +234,60 @@ export function AdminConsole({ email }: { email: string }) {
             ) : (
               <p className="text-sm text-red-400">{ingest.error}</p>
             ))}
+        </section>
+
+        <section className="space-y-3">
+          <div className="space-y-1">
+            <h2 className="text-sm font-semibold">Backfill history</h2>
+            <p className="text-sm text-neutral-400">
+              Replay past racing days — ingest each day&apos;s cards, then its
+              results — to bootstrap the rolling form memory. Runs in budgeted
+              chunks and resumes automatically until the whole window is
+              covered. Safe to re-run; every step is idempotent.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              max={120}
+              value={backfillDays}
+              onChange={(event) =>
+                setBackfillDays(Number(event.target.value) || 0)
+              }
+              disabled={locked}
+              className="w-20 rounded-md border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm disabled:opacity-50"
+            />
+            <span className="text-sm text-neutral-500">days back</span>
+            <Button
+              onClick={runBackfill}
+              disabled={locked}
+              busy={busy === 'backfill'}
+            >
+              Run backfill
+            </Button>
+          </div>
+          {backfill && (
+            <div className="space-y-2">
+              <p
+                className={
+                  backfill.done ? 'text-sm text-emerald-400' : 'text-sm text-neutral-300'
+                }
+              >
+                {backfill.done ? 'Backfill complete.' : 'Backfilling…'}{' '}
+                {backfill.processedDays} day
+                {backfill.processedDays === 1 ? '' : 's'} processed
+                {backfill.lastDate ? ` (through ${backfill.lastDate})` : ''}.
+              </p>
+              <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <Stat label="Entries" value={backfill.entries} />
+                <Stat label="Races resulted" value={backfill.racesUpdated} />
+                <Stat label="Placed" value={backfill.entriesPlaced} />
+                <Stat label="Errors" value={backfill.errors} />
+              </dl>
+            </div>
+          )}
+          {backfillError && <p className="text-sm text-red-400">{backfillError}</p>}
         </section>
 
         <section className="space-y-3">
