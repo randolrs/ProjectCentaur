@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { isAdminEmail } from '@/lib/admin';
 import { getCronSecret } from '@/lib/env';
-import { RacingApiClient } from '@/lib/racing/client';
+import { RacingApiClient, RacingApiError } from '@/lib/racing/client';
 import { createClient } from '@/lib/supabase/server';
 
 // TEMPORARY verification probe for results ingestion (M-results step 0).
@@ -42,11 +42,50 @@ interface RawMeetsResponse {
 interface RawRace {
   has_results?: boolean;
   runners?: unknown[];
+  race_key?: { race_number?: string };
   [key: string]: unknown;
 }
 interface RawEntriesResponse {
   races?: RawRace[];
   [key: string]: unknown;
+}
+
+/** Compact structural description of an arbitrary response body. */
+function describeBody(body: unknown): Record<string, unknown> {
+  if (Array.isArray(body)) {
+    return { shape: 'array', length: body.length, itemKeys: keyUnion(body), sampleItem: body[0] ?? null };
+  }
+  if (!body || typeof body !== 'object') return { shape: typeof body };
+  const obj = body as Record<string, unknown>;
+  const out: Record<string, unknown> = { shape: 'object', topLevelKeys: keyUnion([obj]) };
+  if (Array.isArray(obj.races)) {
+    const races = obj.races as RawRace[];
+    out.raceKeys = keyUnion(races);
+    out.runnerKeys = keyUnion(races.flatMap((r) => r.runners ?? []));
+    out.sampleRace = races[0] ?? null;
+  }
+  if (Array.isArray(obj.results)) {
+    out.resultKeys = keyUnion(obj.results as unknown[]);
+    out.sampleResult = (obj.results as unknown[])[0] ?? null;
+  }
+  return out;
+}
+
+/** Try one endpoint, capturing its HTTP status and (on 200) its shape. */
+async function probeEndpoint(
+  client: RacingApiClient,
+  path: string,
+  params?: Record<string, string | number | undefined>,
+): Promise<Record<string, unknown>> {
+  try {
+    const body = await client.get(path, params);
+    return { path, status: 200, ok: true, ...describeBody(body) };
+  } catch (error) {
+    if (error instanceof RacingApiError) {
+      return { path, status: error.status ?? 0, ok: false };
+    }
+    return { path, status: 0, ok: false, error: String(error) };
+  }
 }
 
 /**
@@ -140,6 +179,40 @@ export async function GET(request: NextRequest): Promise<Response> {
     console.log(`[probe-results] raceKeys=${raceKeys.join(',')}`);
     console.log(`[probe-results] runnerKeys=${runnerKeys.join(',')}`);
 
+    // 3. /entries carries no finishing order, only closing-odds pools. Sweep
+    // the likely dedicated results-endpoint paths to find where order-of-finish
+    // and beaten-lengths actually live.
+    const mid = inspectedMeetId ? encodeURIComponent(inspectedMeetId) : null;
+    const raceNumber = finishedRace?.race_key?.race_number;
+    const candidates: { path: string; params?: Record<string, string | number> }[] = [];
+    if (mid) {
+      candidates.push(
+        { path: `/v1/north-america/meets/${mid}/results` },
+        { path: `/v1/north-america/meets/${mid}/result` },
+        { path: `/v1/north-america/meets/${mid}/charts` },
+        { path: `/v1/north-america/meets/${mid}/chart` },
+        { path: `/v1/north-america/meets/${mid}/payouts` },
+        { path: `/v1/north-america/meets/${mid}/entries/results` },
+      );
+      if (raceNumber) {
+        candidates.push({
+          path: `/v1/north-america/meets/${mid}/races/${encodeURIComponent(raceNumber)}/results`,
+        });
+      }
+    }
+    candidates.push(
+      { path: '/v1/north-america/results', params: { start_date: date, end_date: date } },
+      { path: '/v1/north-america/charts', params: { start_date: date, end_date: date } },
+    );
+
+    const candidateResults: Record<string, unknown>[] = [];
+    for (const c of candidates) {
+      candidateResults.push(await probeEndpoint(client, c.path, c.params));
+    }
+    for (const r of candidateResults) {
+      console.log(`[probe-results] candidate ${r.path} -> status=${r.status}`);
+    }
+
     return Response.json({
       ok: true,
       date,
@@ -150,6 +223,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       entriesTopLevelKeys: keyUnion([entriesRaw]),
       raceKeys,
       runnerKeys,
+      candidateResults,
       sampleRace,
       sampleRunner,
     });
