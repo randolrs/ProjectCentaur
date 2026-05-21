@@ -78,6 +78,13 @@
       "when": 1779154582711,
       "tag": "0010_add_active_days",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1779328436490,
+      "tag": "0011_track_coordinates",
+      "breakpoints": true
     }
   ]
 }

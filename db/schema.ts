@@ -241,6 +241,10 @@ export const tracks = pgTable(
     // Canonical name (onboarding vocabulary); the natural key tracks dedupe on.
     nameCanonical: text('name_canonical').notNull().unique(),
     region: text('region').notNull(),
+    // Resolved at ingest from a known-track map, then geocoding — used to
+    // look up the track's weather forecast. Null until resolved.
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

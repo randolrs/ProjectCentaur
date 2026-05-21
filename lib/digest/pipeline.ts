@@ -4,6 +4,7 @@ import {
   getDigestEligibleUsers,
   getRacesForTracks,
   getSentDigestCountByUser,
+  getTrackCoordinates,
 } from '@/db/queries';
 import { renderDigestEmail } from './email';
 import { DigestLlmError, generateDigest } from './llm';
@@ -87,10 +88,16 @@ async function attachWeather(
   raceDate: string,
 ): Promise<ScoredRace[]> {
   const distinctTracks = Array.from(new Set(scored.map((s) => s.race.track)));
-  const forecasts = new Map<string, Awaited<ReturnType<typeof getCachedForecast>>>();
+  // Prefer coordinates resolved at ingest (covers any track); fall back to
+  // the curated map so the known tracks get weather even before a backfill.
+  const dbCoords = await getTrackCoordinates(distinctTracks);
+  const forecasts = new Map<
+    string,
+    Awaited<ReturnType<typeof getCachedForecast>>
+  >();
   await Promise.all(
     distinctTracks.map(async (track) => {
-      const coords = TRACK_COORDINATES[track];
+      const coords = dbCoords.get(track) ?? TRACK_COORDINATES[track];
       if (!coords) return;
       forecasts.set(track, await getCachedForecast(track, coords, raceDate));
     }),
