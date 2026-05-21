@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { isAdminEmail } from '@/lib/admin';
+import { getCronSecret } from '@/lib/env';
 import { RacingApiClient } from '@/lib/racing/client';
 import { createClient } from '@/lib/supabase/server';
 
@@ -48,14 +49,31 @@ interface RawEntriesResponse {
   [key: string]: unknown;
 }
 
-export async function GET(request: NextRequest): Promise<Response> {
+/**
+ * Authorize either as a signed-in admin (browser on the production domain) or
+ * with the `CRON_SECRET` bearer (a curl against a preview URL, where no admin
+ * session cookie exists). Returns null when allowed.
+ */
+async function authorize(request: NextRequest): Promise<Response | null> {
+  const auth = request.headers.get('authorization');
+  if (auth) {
+    try {
+      if (auth === `Bearer ${getCronSecret()}`) return null;
+    } catch {
+      // CRON_SECRET unset — fall through to the session check.
+    }
+  }
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!isAdminEmail(user?.email)) {
-    return Response.json({ ok: false, error: 'Not authorized.' }, { status: 403 });
-  }
+  if (isAdminEmail(user?.email)) return null;
+  return Response.json({ ok: false, error: 'Not authorized.' }, { status: 403 });
+}
+
+export async function GET(request: NextRequest): Promise<Response> {
+  const denied = await authorize(request);
+  if (denied) return denied;
 
   const params = request.nextUrl.searchParams;
   const date = params.get('date') ?? isoDateMinus(1);
