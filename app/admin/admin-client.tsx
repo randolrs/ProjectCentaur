@@ -140,7 +140,15 @@ export function AdminConsole({ email }: { email: string }) {
     let remaining = backfillDays;
     let cursor: string | undefined;
     for (let chunk = 0; remaining > 0 && chunk < 120; chunk += 1) {
-      const res = await triggerHistoryBackfill(remaining, cursor);
+      let res: Awaited<ReturnType<typeof triggerHistoryBackfill>>;
+      try {
+        res = await triggerHistoryBackfill(remaining, cursor);
+      } catch {
+        setBackfillError(
+          'A backfill chunk failed (likely a timeout). Re-run to resume — it picks up where it left off.',
+        );
+        break;
+      }
       if (!res.ok) {
         setBackfillError(res.error);
         break;

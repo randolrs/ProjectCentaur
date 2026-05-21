@@ -110,30 +110,37 @@ export const naEntriesResponseSchema = z.object({
 // A finished race exposes finishing order only implicitly: the `runners`
 // array holds the in-the-money finishers, each carrying win/place/show
 // payoffs. Position is derived from which payoff is non-zero (see
-// `lib/racing/ingest.ts`). We keep just the fields that derivation needs.
+// `lib/racing/ingest.ts`). Every field is type-tolerant — the provider varies
+// shapes across breeds/tracks and we only read four values — so a single
+// surprising field can never make a whole meet's results unparseable.
 // ---------------------------------------------------------------------------
 
-export const naResultRunnerSchema = z.object({
-  horse_name: nullableString,
-  program_number: nullableString,
-  program_number_stripped: z.number().nullish(),
-  win_payoff: numberOrString,
-  place_payoff: numberOrString,
-  show_payoff: numberOrString,
-});
+export const naResultRunnerSchema = z
+  .object({
+    horse_name: nullableString,
+    program_number: numberOrString,
+    win_payoff: numberOrString,
+    place_payoff: numberOrString,
+    show_payoff: numberOrString,
+  })
+  .passthrough();
 
-export const naResultRaceSchema = z.object({
-  race_key: naRaceKeySchema.optional(),
-  runners: z.array(naResultRunnerSchema).default([]),
-  track_condition_description: nullableString,
-});
+export const naResultRaceSchema = z
+  .object({
+    race_key: z.object({ race_number: numberOrString }).passthrough().nullish(),
+    runners: z.array(naResultRunnerSchema).catch([]),
+    track_condition_description: nullableString,
+  })
+  .passthrough();
 
-export const naResultsResponseSchema = z.object({
-  meet_id: nullableString,
-  track_name: nullableString,
-  date: nullableString,
-  races: z.array(naResultRaceSchema).default([]),
-});
+export const naResultsResponseSchema = z
+  .object({
+    meet_id: nullableString,
+    track_name: nullableString,
+    date: nullableString,
+    races: z.array(naResultRaceSchema).catch([]),
+  })
+  .passthrough();
 
 export type NaMeet = z.infer<typeof naMeetSchema>;
 export type NaMeetsResponse = z.infer<typeof naMeetsResponseSchema>;

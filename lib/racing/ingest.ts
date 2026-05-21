@@ -23,7 +23,7 @@ import {
   tracks,
   trainers,
 } from '@/db/schema';
-import { RacingApiClient } from './client';
+import { RacingApiClient, RacingApiError } from './client';
 import {
   canonicalRaceClass,
   canonicalSurface,
@@ -473,7 +473,8 @@ function toPayoff(value: number | string | null | undefined): number {
 export function deriveResultPlacements(race: NaResultRace): RacePlacement[] {
   const placements: RacePlacement[] = [];
   for (const runner of race.runners) {
-    const programNumber = runner.program_number?.trim();
+    const programNumber =
+      runner.program_number == null ? null : String(runner.program_number).trim();
     if (!programNumber) continue;
     const win = toPayoff(runner.win_payoff);
     const place = toPayoff(runner.place_payoff);
@@ -534,6 +535,9 @@ export async function ingestResultsForDate(
         entriesPlaced += placements.length;
       }
     } catch (error) {
+      // A meet whose results aren't posted yet returns 404 — expected for the
+      // most recent days, not a failure worth counting.
+      if (error instanceof RacingApiError && error.status === 404) continue;
       errors += 1;
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[results] meet ${providerMeetId} failed: ${message}`);
@@ -596,7 +600,9 @@ export async function backfillHistory(opts: {
   const { days } = opts;
   const startDate =
     opts.startDate ?? usToday(new Date(Date.now() - 24 * 60 * 60 * 1000));
-  const budgetMs = opts.budgetMs ?? 240_000;
+  // Leave generous headroom under the 300s function ceiling: the budget is
+  // only checked between days, and a single heavy day can run tens of seconds.
+  const budgetMs = opts.budgetMs ?? 200_000;
   const api = opts.client ?? RacingApiClient.fromEnv();
   const began = Date.now();
 
