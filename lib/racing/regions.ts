@@ -42,8 +42,11 @@ export interface RegionStrategy<TRaw = unknown> {
   readonly defaultDigestDeliveryHour: number;
   /** Bet types surfaced as defaults during onboarding. */
   readonly suggestedBetTypes: readonly string[];
-  /** Fetch raw provider data for the region's current racing day. */
-  dataFetch(client: RacingApiClient): Promise<TRaw>;
+  /**
+   * Fetch raw provider data for a racing day (YYYY-MM-DD). Defaults to the
+   * region's current racing day; an explicit date drives backfill.
+   */
+  dataFetch(client: RacingApiClient, date?: string): Promise<TRaw>;
   /** Translate raw provider data into normalized racecards. */
   raceNormalization(raw: TRaw): Racecard[];
 }
@@ -225,9 +228,10 @@ class UsRegionStrategy implements RegionStrategy<RawUsRacecardData> {
     'pick_4',
   ] as const;
 
-  async dataFetch(client: RacingApiClient): Promise<RawUsRacecardData> {
-    const date = usToday();
-
+  async dataFetch(
+    client: RacingApiClient,
+    date: string = usToday(),
+  ): Promise<RawUsRacecardData> {
     // The meets endpoint paginates (max 50 per page); walk every page.
     const pageSize = 50;
     const allMeets: NaMeet[] = [];

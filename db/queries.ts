@@ -1,4 +1,14 @@
-import { and, asc, count, desc, eq, inArray, isNull, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { getDb } from './index';
 import type {
   HandicapperProfileRow,
@@ -16,6 +26,7 @@ import {
   handicapperProfile,
   horses,
   jockeys,
+  meets,
   raceEntries,
   races,
   subscriptions,
@@ -147,6 +158,59 @@ export async function getRacesForTracks(
       ),
     )
     .orderBy(asc(races.postTimestamp), asc(races.track), asc(races.raceNumber));
+}
+
+/**
+ * Index of the races we already hold for a racing day, keyed by their meet's
+ * provider id and race number — the join results ingestion needs to match a
+ * provider results payload back onto our `races` rows.
+ */
+export async function getMeetRaceIndexForDate(
+  date: string,
+  region = 'us',
+): Promise<{ providerMeetId: string; raceId: string; raceNumber: number | null }[]> {
+  const db = getDb();
+  return db
+    .select({
+      providerMeetId: meets.providerMeetId,
+      raceId: races.id,
+      raceNumber: races.raceNumber,
+    })
+    .from(meets)
+    .innerJoin(races, eq(races.meetId, meets.id))
+    .where(and(eq(meets.raceDate, date), eq(meets.region, region)));
+}
+
+/** A horse's finishing position in a race, by program number. */
+export interface RacePlacement {
+  programNumber: string;
+  position: number;
+}
+
+/**
+ * Record one race's results: mark every non-scratched entry as resulted and
+ * set `finishPosition` for the placed runners. Idempotent — re-running with
+ * the same placements is a no-op. A race with no placements (e.g. all data
+ * missing) still gets stamped as resulted.
+ */
+export async function recordRaceResults(
+  raceId: string,
+  placements: RacePlacement[],
+): Promise<void> {
+  const db = getDb();
+  const finishPosition =
+    placements.length > 0
+      ? sql`CASE ${raceEntries.programNumber} ${sql.join(
+          placements.map(
+            (p) => sql`WHEN ${p.programNumber} THEN ${p.position}`,
+          ),
+          sql` `,
+        )} ELSE NULL END`
+      : sql`NULL`;
+  await db
+    .update(raceEntries)
+    .set({ resultRecordedAt: sql`now()`, finishPosition, updatedAt: sql`now()` })
+    .where(and(eq(raceEntries.raceId, raceId), eq(raceEntries.scratched, false)));
 }
 
 export interface IngestDaySummary {

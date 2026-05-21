@@ -85,6 +85,13 @@
       "when": 1779328436490,
       "tag": "0011_track_coordinates",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1779337409542,
+      "tag": "0012_race_entry_results",
+      "breakpoints": true
     }
   ]
 }

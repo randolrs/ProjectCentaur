@@ -2,8 +2,10 @@ import { getRacingApiConfig, type RacingApiConfig } from '@/lib/env';
 import {
   naEntriesResponseSchema,
   naMeetsResponseSchema,
+  naResultsResponseSchema,
   type NaEntriesResponse,
   type NaMeetsResponse,
+  type NaResultsResponse,
   type Racecard,
 } from './types';
 import { usRegionStrategy } from './regions';
@@ -112,6 +114,14 @@ export class RacingApiClient {
       `/v1/north-america/meets/${encodeURIComponent(meetId)}/entries`,
     );
     return naEntriesResponseSchema.parse(json);
+  }
+
+  /** Fetch the finishing results for a single North America meet. */
+  async getNorthAmericaResults(meetId: string): Promise<NaResultsResponse> {
+    const json = await this.get(
+      `/v1/north-america/meets/${encodeURIComponent(meetId)}/results`,
+    );
+    return naResultsResponseSchema.parse(json);
   }
 
   /**

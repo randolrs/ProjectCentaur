@@ -104,12 +104,46 @@ export const naEntriesResponseSchema = z.object({
   races: z.array(naRaceSchema).default([]),
 });
 
+// ---------------------------------------------------------------------------
+// Raw North America results responses (`.../meets/{meet_id}/results`).
+//
+// A finished race exposes finishing order only implicitly: the `runners`
+// array holds the in-the-money finishers, each carrying win/place/show
+// payoffs. Position is derived from which payoff is non-zero (see
+// `lib/racing/ingest.ts`). We keep just the fields that derivation needs.
+// ---------------------------------------------------------------------------
+
+export const naResultRunnerSchema = z.object({
+  horse_name: nullableString,
+  program_number: nullableString,
+  program_number_stripped: z.number().nullish(),
+  win_payoff: numberOrString,
+  place_payoff: numberOrString,
+  show_payoff: numberOrString,
+});
+
+export const naResultRaceSchema = z.object({
+  race_key: naRaceKeySchema.optional(),
+  runners: z.array(naResultRunnerSchema).default([]),
+  track_condition_description: nullableString,
+});
+
+export const naResultsResponseSchema = z.object({
+  meet_id: nullableString,
+  track_name: nullableString,
+  date: nullableString,
+  races: z.array(naResultRaceSchema).default([]),
+});
+
 export type NaMeet = z.infer<typeof naMeetSchema>;
 export type NaMeetsResponse = z.infer<typeof naMeetsResponseSchema>;
 export type NaPerson = z.infer<typeof naPersonSchema>;
 export type NaRunner = z.infer<typeof naRunnerSchema>;
 export type NaRace = z.infer<typeof naRaceSchema>;
 export type NaEntriesResponse = z.infer<typeof naEntriesResponseSchema>;
+export type NaResultRunner = z.infer<typeof naResultRunnerSchema>;
+export type NaResultRace = z.infer<typeof naResultRaceSchema>;
+export type NaResultsResponse = z.infer<typeof naResultsResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // Normalized, region-agnostic domain types.

@@ -435,6 +435,13 @@ export const raceEntries = pgTable(
     medication: text('medication'),
     equipment: text('equipment'),
     scratched: boolean('scratched').notNull().default(false),
+    // Result fields, filled by the results cron after a race finishes.
+    // `finishPosition` is set for the in-the-money finishers (1-3) and left
+    // null for horses that ran off the board; `resultRecordedAt` marks the
+    // entry's race as resulted, distinguishing "ran, unplaced" from "no result
+    // yet". Both null until results ingestion processes the race.
+    finishPosition: integer('finish_position'),
+    resultRecordedAt: timestamp('result_recorded_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
