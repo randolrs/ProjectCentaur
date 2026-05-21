@@ -1,4 +1,5 @@
 import type { RaceRow, UserPreferencesRow } from '@/db/schema';
+import type { TrackForecast } from '@/lib/weather/nws';
 
 // ---------------------------------------------------------------------------
 // Deterministic race selection.
@@ -49,6 +50,8 @@ export interface ScoredRace {
   race: RaceRow;
   /** Plain-language reasons the race matched, one per satisfied preference. */
   matchReasons: string[];
+  /** Forecast at the track on the racing day, attached by the pipeline. */
+  weather?: TrackForecast | null;
 }
 
 /** Post-time order with unknown post times sorted last, then track / race. */
