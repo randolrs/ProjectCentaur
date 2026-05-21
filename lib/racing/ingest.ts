@@ -1,6 +1,10 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import {
+  getTracksMissingCoordinates,
+  setTrackCoordinates,
+} from '@/db/queries';
+import {
   horses,
   jockeys,
   meets,
@@ -26,6 +30,30 @@ import {
 } from './canonical';
 import { usRegionStrategy } from './regions';
 import type { Person, Racecard, Runner } from './types';
+import { TRACK_COORDINATES } from '@/lib/weather/coordinates';
+import { geocodeTrack } from '@/lib/weather/geocode';
+
+/**
+ * Resolve coordinates for any track that doesn't have them yet — known
+ * tracks from the curated map, everything else by geocoding the name. Runs
+ * after ingestion so every newly-seen track gets weather support without a
+ * code change. Best-effort: a track that can't be resolved is left null and
+ * simply gets no weather line.
+ */
+export async function backfillTrackCoordinates(): Promise<number> {
+  const missing = await getTracksMissingCoordinates();
+  let resolved = 0;
+  for (const track of missing) {
+    const coords =
+      TRACK_COORDINATES[track.nameCanonical] ??
+      (await geocodeTrack(track.nameCanonical));
+    if (coords) {
+      await setTrackCoordinates(track.id, coords);
+      resolved += 1;
+    }
+  }
+  return resolved;
+}
 
 // ---------------------------------------------------------------------------
 // Race ingestion
@@ -400,5 +428,14 @@ export async function ingestTodaysUsRaces(
   const api = client ?? RacingApiClient.fromEnv();
   const raw = await usRegionStrategy.dataFetch(api);
   const cards = usRegionStrategy.raceNormalization(raw);
-  return ingestRacecards(cards, raw.date);
+  const result = await ingestRacecards(cards, raw.date);
+  // Fill coordinates for any track seen for the first time, so it gets
+  // weather support automatically. Never let this fail the ingest.
+  try {
+    await backfillTrackCoordinates();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[ingest] track coordinate backfill failed: ${message}`);
+  }
+  return result;
 }

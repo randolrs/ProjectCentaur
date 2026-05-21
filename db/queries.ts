@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 import { getDb } from './index';
 import type {
   HandicapperProfileRow,
@@ -34,6 +34,52 @@ export async function getCanonicalTracks(region = 'us'): Promise<string[]> {
     .where(eq(tracks.region, region))
     .orderBy(asc(tracks.nameCanonical));
   return rows.map((r) => r.name);
+}
+
+/** Resolved lat/lng for the given canonical track names, when available. */
+export async function getTrackCoordinates(
+  names: string[],
+): Promise<Map<string, { lat: number; lng: number }>> {
+  const result = new Map<string, { lat: number; lng: number }>();
+  if (names.length === 0) return result;
+  const db = getDb();
+  const rows = await db
+    .select({
+      name: tracks.nameCanonical,
+      latitude: tracks.latitude,
+      longitude: tracks.longitude,
+    })
+    .from(tracks)
+    .where(inArray(tracks.nameCanonical, names));
+  for (const row of rows) {
+    if (row.latitude !== null && row.longitude !== null) {
+      result.set(row.name, { lat: row.latitude, lng: row.longitude });
+    }
+  }
+  return result;
+}
+
+/** Tracks that don't yet have coordinates resolved. */
+export async function getTracksMissingCoordinates(): Promise<
+  { id: string; nameCanonical: string }[]
+> {
+  const db = getDb();
+  return db
+    .select({ id: tracks.id, nameCanonical: tracks.nameCanonical })
+    .from(tracks)
+    .where(isNull(tracks.latitude));
+}
+
+/** Persist resolved coordinates for one track. */
+export async function setTrackCoordinates(
+  id: string,
+  coords: { lat: number; lng: number },
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(tracks)
+    .set({ latitude: coords.lat, longitude: coords.lng })
+    .where(eq(tracks.id, id));
 }
 
 /** The user's deterministic onboarding preferences, or null if not onboarded. */
