@@ -2,7 +2,11 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { HandicapperProfileRow, UserPreferencesRow } from '@/db/schema';
 import { getAnthropicApiKey } from '@/lib/env';
 import { digestSystemPrompt, renderDigestContext } from './prompts';
-import { type DigestLlmOutput, parseDigestOutput } from './schema';
+import {
+  type DigestLlmOutput,
+  type DigestTier,
+  parseDigestOutput,
+} from './schema';
 import type { ScoredRace } from './select';
 
 // ---------------------------------------------------------------------------
@@ -46,6 +50,7 @@ export interface GenerateDigestInput {
   prefs: UserPreferencesRow;
   scored: ScoredRace[];
   raceDate: string;
+  tier: DigestTier;
 }
 
 export interface GenerateDigestResult {
@@ -102,6 +107,7 @@ export async function generateDigest(
     input.prefs,
     input.scored,
     input.raceDate,
+    input.tier,
   );
 
   let total = emptyUsage();

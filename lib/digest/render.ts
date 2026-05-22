@@ -1,5 +1,6 @@
 import type {
   DigestLlmOutput,
+  DigestTier,
   RenderedDigest,
   RenderedDigestItem,
 } from './schema';
@@ -41,9 +42,16 @@ function fallbackItem(scored: ScoredRace): RenderedDigestItem {
   };
 }
 
-function fallbackIntro(scored: ScoredRace[]): string {
+function fallbackIntro(scored: ScoredRace[], tier: DigestTier): string {
   const tracks = [...new Set(scored.map((s) => s.race.track))];
   const raceWord = scored.length === 1 ? 'race' : 'races';
+  if (tier === 'weak') {
+    const verb = scored.length === 1 ? 'is' : 'are';
+    return (
+      `Nothing at ${tracks.join(', ')} strongly matched your profile today, ` +
+      `so here ${verb} the ${scored.length} closest ${raceWord} to look over.`
+    );
+  }
   return (
     `${scored.length} ${raceWord} at ${tracks.join(', ')} fit your profile ` +
     'today. Here is the rundown.'
@@ -58,10 +66,12 @@ function fallbackIntro(scored: ScoredRace[]): string {
 export function buildRenderedDigest(
   output: DigestLlmOutput | null,
   scored: ScoredRace[],
+  tier: DigestTier,
 ): RenderedDigest {
   if (output === null) {
     return {
-      intro: fallbackIntro(scored),
+      intro: fallbackIntro(scored, tier),
+      tier,
       generatedBy: 'fallback',
       items: scored.map(fallbackItem),
     };
@@ -86,5 +96,22 @@ export function buildRenderedDigest(
     } satisfies RenderedDigestItem;
   });
 
-  return { intro: output.intro, generatedBy: 'llm', items };
+  return { intro: output.intro, tier, generatedBy: 'llm', items };
+}
+
+/**
+ * The digest for a "dark" day — none of the user's followed tracks are
+ * running. A short, race-less note so the user still hears from us rather
+ * than getting silence.
+ */
+export function buildDarkDigest(tracks: string[]): RenderedDigest {
+  const where = tracks.length > 0 ? tracks.join(', ') : 'your tracks';
+  return {
+    intro:
+      `No racing at ${where} today — none of your tracks have a card. ` +
+      "We'll be back with your next digest the day they run.",
+    tier: 'dark',
+    generatedBy: 'fallback',
+    items: [],
+  };
 }

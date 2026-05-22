@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RaceRow } from '@/db/schema';
 import { renderDigestEmail } from '@/lib/digest/email';
-import { buildRenderedDigest } from '@/lib/digest/render';
+import { buildDarkDigest, buildRenderedDigest } from '@/lib/digest/render';
 import { parseDigestOutput, type RenderedDigest } from '@/lib/digest/schema';
 import type { ScoredRace } from '@/lib/digest/select';
 
@@ -35,7 +35,12 @@ function scoredRace(key: string, track: string): ScoredRace {
     createdAt: now,
     updatedAt: now,
   };
-  return { race: r, matchReasons: ['Runs on dirt', 'claiming race'] };
+  return {
+    race: r,
+    matchReasons: ['Runs on dirt', 'claiming race'],
+    missReasons: [],
+    strength: 'strong',
+  };
 }
 
 const scored = [
@@ -78,6 +83,7 @@ describe('buildRenderedDigest', () => {
         ],
       },
       scored,
+      'strong',
     );
     expect(digest.generatedBy).toBe('llm');
     expect(digest.items).toHaveLength(2);
@@ -98,22 +104,40 @@ describe('buildRenderedDigest', () => {
         ],
       },
       scored,
+      'strong',
     );
     expect(digest.items).toHaveLength(2);
     expect(digest.items[1]!.reasoning).toContain('Matches your profile');
   });
 
   it('builds a full fallback digest when the model output is null', () => {
-    const digest = buildRenderedDigest(null, scored);
+    const digest = buildRenderedDigest(null, scored, 'strong');
     expect(digest.generatedBy).toBe('fallback');
     expect(digest.items).toHaveLength(2);
     expect(digest.intro).toContain('fit your profile');
+  });
+
+  it('writes a weak-day fallback intro flagging the lack of strong matches', () => {
+    const digest = buildRenderedDigest(null, scored, 'weak');
+    expect(digest.tier).toBe('weak');
+    expect(digest.intro).toContain('strongly matched');
+    expect(digest.intro).toContain('closest');
+  });
+});
+
+describe('buildDarkDigest', () => {
+  it('builds a race-less dark-day note naming the tracks', () => {
+    const digest = buildDarkDigest(['Parx Racing']);
+    expect(digest.tier).toBe('dark');
+    expect(digest.items).toHaveLength(0);
+    expect(digest.intro).toContain('Parx Racing');
   });
 });
 
 describe('renderDigestEmail', () => {
   const digest: RenderedDigest = {
     intro: 'A lively card across two tracks.',
+    tier: 'strong',
     generatedBy: 'llm',
     items: [
       {
@@ -142,5 +166,21 @@ describe('renderDigestEmail', () => {
     const email = renderDigestEmail(digest, '2026-05-17');
     expect(email.html).toContain('&lt;worth a look&gt;');
     expect(email.html).not.toContain('<worth a look>');
+  });
+
+  it('flags a weak-match digest in the subject and body', () => {
+    const email = renderDigestEmail({ ...digest, tier: 'weak' }, '2026-05-17');
+    expect(email.subject).toContain('no strong matches');
+    expect(email.html).toContain('closest looks at your tracks');
+    expect(email.text).toContain('closest looks at your tracks');
+  });
+
+  it('renders a dark-day note with no race items', () => {
+    const dark = buildDarkDigest(['Parx Racing']);
+    const email = renderDigestEmail(dark, '2026-05-17');
+    expect(email.subject).toContain('No racing at your tracks');
+    expect(email.html).toContain('No racing today');
+    expect(email.html).toContain('Parx Racing');
+    expect(email.html).toContain('the day your tracks are running');
   });
 });

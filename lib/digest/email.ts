@@ -76,15 +76,60 @@ export interface RenderDigestOptions {
   upgradeUrl?: string;
 }
 
+/** Subject line for a digest, reflecting how well the day fit the user. */
+function subjectFor(digest: RenderedDigest, raceDate: string): string {
+  const date = displayDate(raceDate);
+  const count = digest.items.length;
+  const noun = count === 1 ? 'race' : 'races';
+  switch (digest.tier) {
+    case 'dark':
+      return `No racing at your tracks — ${date}`;
+    case 'weak':
+      return `Your race digest — ${date} — no strong matches`;
+    default:
+      return `Your race digest — ${date} (${count} ${noun})`;
+  }
+}
+
+/** Closing line under the digest, reflecting how well the day fit the user. */
+function footerFor(tier: RenderedDigest['tier']): string {
+  switch (tier) {
+    case 'dark':
+      return "We'll send your next digest the day your tracks are running.";
+    case 'weak':
+      return 'None of today’s races fully matched your profile — these are the closest at your tracks.';
+    default:
+      return 'These races match the tracks and preferences from your handicapping profile.';
+  }
+}
+
 /** Render a finished digest into a deliverable email. */
 export function renderDigestEmail(
   digest: RenderedDigest,
   raceDate: string,
   options: RenderDigestOptions = {},
 ): RenderedEmail {
-  const count = digest.items.length;
-  const noun = count === 1 ? 'race' : 'races';
-  const subject = `Your race digest — ${displayDate(raceDate)} (${count} ${noun})`;
+  const subject = subjectFor(digest, raceDate);
+  const heading = digest.tier === 'dark' ? 'No racing today' : 'Your race digest';
+  const footer = footerFor(digest.tier);
+
+  const weakNoteHtml =
+    digest.tier === 'weak'
+      ? `<tr><td style="padding:8px 32px 0 32px;">
+          <div style="background:#fff8e1;border:1px solid #f0e0a0;border-radius:8px;padding:14px 16px;font-size:13px;line-height:1.5;color:#7a5c00;">
+            No races strongly matched your criteria today — here are the closest looks at your tracks.
+          </div>
+        </td></tr>`
+      : '';
+
+  const itemsHtml =
+    digest.items.length > 0
+      ? `<tr><td style="padding:8px 32px 24px 32px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            ${digest.items.map(itemHtml).join('')}
+          </table>
+        </td></tr>`
+      : '';
 
   const upgradeUrl = options.upgradeUrl;
   const upgradeHtml = upgradeUrl
@@ -112,20 +157,17 @@ export function renderDigestEmail(
           <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#999999;">
             ${escapeHtml(displayDate(raceDate))}
           </div>
-          <h1 style="font-size:22px;color:#111111;margin:8px 0 0 0;">Your race digest</h1>
+          <h1 style="font-size:22px;color:#111111;margin:8px 0 0 0;">${escapeHtml(heading)}</h1>
           <p style="font-size:14px;line-height:1.6;color:#333333;margin:16px 0 0 0;">
             ${escapeHtml(digest.intro)}
           </p>
         </td></tr>
-        <tr><td style="padding:8px 32px 24px 32px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-            ${digest.items.map(itemHtml).join('')}
-          </table>
-        </td></tr>
+        ${weakNoteHtml}
+        ${itemsHtml}
         ${upgradeHtml}
         <tr><td style="padding:24px 32px 32px 32px;">
           <p style="font-size:12px;color:#aaaaaa;border-top:1px solid #e5e5e5;padding-top:16px;margin:0;">
-            These races match the tracks and preferences from your handicapping profile.
+            ${escapeHtml(footer)}
           </p>
         </td></tr>
       </table>
@@ -134,11 +176,15 @@ export function renderDigestEmail(
 </body></html>`;
 
   const text = [
-    `YOUR RACE DIGEST — ${displayDate(raceDate)}`,
+    `${heading.toUpperCase()} — ${displayDate(raceDate)}`,
     '',
     digest.intro,
-    '',
-    digest.items.map(itemText).join('\n\n'),
+    ...(digest.tier === 'weak'
+      ? ['', 'No races strongly matched your criteria today — here are the closest looks at your tracks.']
+      : []),
+    ...(digest.items.length > 0
+      ? ['', digest.items.map(itemText).join('\n\n')]
+      : []),
     '',
     ...(upgradeUrl
       ? [
@@ -149,7 +195,7 @@ export function renderDigestEmail(
         ]
       : []),
     '—',
-    'These races match the tracks and preferences from your handicapping profile.',
+    footer,
   ].join('\n');
 
   return { subject, html, text };
