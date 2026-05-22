@@ -18,6 +18,7 @@ import {
 import { usRegionStrategy } from '@/lib/racing/regions';
 import {
   naEntriesResponseSchema,
+  naResultsResponseSchema,
   type NaResultRace,
   type Person,
   type Racecard,
@@ -238,5 +239,30 @@ describe('deriveResultPlacements', () => {
       ],
     });
     expect(result).toEqual([{ programNumber: '1', position: 1 }]);
+  });
+
+  // Guards the bug that dropped every US meet: the provider types these fields
+  // inconsistently, so the schema must accept numeric program numbers/payoffs
+  // and unknown extra fields without throwing.
+  it('parses numeric program numbers and ignores unknown fields', () => {
+    const parsed = naResultsResponseSchema.parse({
+      meet_id: 'XYZ',
+      weather: { temp: 60 },
+      races: [
+        {
+          race_key: { race_number: 5 },
+          fraction: { winning_time: { seconds: 71 } },
+          runners: [
+            { horse_name: 'A', program_number: 2, win_payoff: 7.2, place_payoff: 3.1, show_payoff: 2.4 },
+            { horse_name: 'B', program_number: 6, win_payoff: 0, place_payoff: 4.0, show_payoff: 2.8 },
+          ],
+        },
+      ],
+    });
+    expect(parsed.races).toHaveLength(1);
+    expect(deriveResultPlacements(parsed.races[0]!)).toEqual([
+      { programNumber: '2', position: 1 },
+      { programNumber: '6', position: 2 },
+    ]);
   });
 });

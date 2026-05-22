@@ -116,12 +116,27 @@ export class RacingApiClient {
     return naEntriesResponseSchema.parse(json);
   }
 
-  /** Fetch the finishing results for a single North America meet. */
+  /**
+   * Fetch the finishing results for a single North America meet. Parsing is
+   * non-fatal: an unexpected shape logs the offending field paths and yields
+   * no races, rather than throwing away the meet (the schema is permissive,
+   * so this should be rare and purely diagnostic).
+   */
   async getNorthAmericaResults(meetId: string): Promise<NaResultsResponse> {
     const json = await this.get(
       `/v1/north-america/meets/${encodeURIComponent(meetId)}/results`,
     );
-    return naResultsResponseSchema.parse(json);
+    const parsed = naResultsResponseSchema.safeParse(json);
+    if (!parsed.success) {
+      const paths = parsed.error.issues
+        .slice(0, 5)
+        .map((issue) => `${issue.path.join('.')}: ${issue.message}`);
+      console.warn(
+        `[racing] results parse failed for ${meetId}: ${paths.join(' | ')}`,
+      );
+      return { races: [] };
+    }
+    return parsed.data;
   }
 
   /**
