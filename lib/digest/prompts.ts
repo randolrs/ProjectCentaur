@@ -2,6 +2,7 @@ import type { HandicapperProfileRow, UserPreferencesRow } from '@/db/schema';
 import { DIGEST_SYSTEM_PROMPT } from '@/lib/llm/prompts/us/digest_system';
 import type { Runner } from '@/lib/racing/types';
 import { formatForecast } from '@/lib/weather/nws';
+import type { DigestTier } from './schema';
 import type { ScoredRace } from './select';
 
 // Region-agnostic accessors for the digest prompts. v1 is US-only.
@@ -114,7 +115,14 @@ function raceSection(scored: ScoredRace): string {
       `${purseText}${claimText}`,
     race.conditions ? `  Conditions: ${race.conditions}` : null,
     scored.weather ? `  Weather: ${formatForecast(scored.weather)}` : null,
-    `  Cleared your filters because: ${scored.matchReasons.join('; ')}.`,
+    scored.strength === 'strong'
+      ? `  Cleared your filters because: ${scored.matchReasons.join('; ')}.`
+      : scored.matchReasons.length > 0
+        ? `  Partially matches: ${scored.matchReasons.join('; ')}.`
+        : null,
+    scored.missReasons.length > 0
+      ? `  Does NOT match your criteria: ${scored.missReasons.join('; ')}.`
+      : null,
     live.length > 0 ? '  Runners:' : '  Runners: none listed',
     ...live.map(runnerLine),
   ]
@@ -125,16 +133,32 @@ function raceSection(scored: ScoredRace): string {
 /**
  * Render the user message for a digest run: the handicapper profile followed
  * by every selected race with its `race_key`, structured fields, and runners.
+ * On a 'weak' day no race cleared every filter, so the model is told to be
+ * upfront that these are the closest fits rather than strong matches.
  */
 export function renderDigestContext(
   profile: HandicapperProfileRow,
   prefs: UserPreferencesRow,
   scored: ScoredRace[],
   raceDate: string,
+  tier: DigestTier,
 ): string {
+  const weakNote =
+    tier === 'weak'
+      ? [
+          "NOTE: None of today's races at this handicapper's followed tracks " +
+            'strongly matched their stated surface/class/distance/field-size ' +
+            'preferences. The races below are the CLOSEST available at their ' +
+            'tracks. In your intro, say plainly that nothing was a strong ' +
+            'match today. For each race, name which of their criteria it does ' +
+            'and does not meet, and do not oversell a weak fit.',
+          '',
+        ]
+      : [];
   return [
     profileSection(profile, prefs),
     '',
+    ...weakNote,
     `TODAY'S RACES (${raceDate}) — ${scored.length} in total`,
     '',
     ...scored.map(raceSection),

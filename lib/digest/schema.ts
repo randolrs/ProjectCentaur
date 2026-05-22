@@ -43,9 +43,18 @@ export interface RenderedDigestItem {
   reasoning: string;
 }
 
+/**
+ * How well the day's card fit the user's criteria:
+ * - 'strong': races that cleared every filter (the normal digest).
+ * - 'weak': no strong matches, so the closest fits at their tracks are shown.
+ * - 'dark': none of their tracks were running — a short no-card note.
+ */
+export type DigestTier = 'strong' | 'weak' | 'dark';
+
 /** The complete digest persisted to `digests.content`. */
 export interface RenderedDigest {
   intro: string;
+  tier: DigestTier;
   // 'llm' for a model-written digest; 'fallback' when the model call failed
   // and the digest was assembled deterministically from the match reasons.
   generatedBy: 'llm' | 'fallback';

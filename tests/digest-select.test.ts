@@ -3,6 +3,7 @@ import type { RaceRow, UserPreferencesRow } from '@/db/schema';
 import {
   distanceRangeOf,
   fieldSizeBandOf,
+  selectClosestRaces,
   selectRacesForUser,
 } from '@/lib/digest/select';
 
@@ -83,6 +84,8 @@ describe('selectRacesForUser', () => {
     const selected = selectRacesForUser(prefs({}), [race({})]);
     expect(selected).toHaveLength(1);
     expect(selected[0]!.matchReasons.length).toBeGreaterThanOrEqual(3);
+    expect(selected[0]!.strength).toBe('strong');
+    expect(selected[0]!.missReasons).toEqual([]);
   });
 
   it('drops races on an unfollowed surface', () => {
@@ -131,5 +134,51 @@ describe('selectRacesForUser', () => {
     const early = race({ key: 'early', postTimestamp: 1_000 });
     const selected = selectRacesForUser(prefs({}), [late, early]);
     expect(selected.map((s) => s.race.key)).toEqual(['early', 'late']);
+  });
+});
+
+describe('selectClosestRaces', () => {
+  const followed = prefs({
+    surfaces: ['dirt'],
+    raceClasses: ['claiming'],
+    distanceRanges: ['sprint'],
+    fieldSizeBand: 'any',
+  });
+
+  it('excludes strong matches and ranks the rest by how many prefs they hit', () => {
+    const strong = race({ key: 'strong' });
+    // misses class only (2 of 3 active prefs satisfied: surface + distance).
+    const closeMiss = race({
+      key: 'close',
+      raceClass: 'STAKES',
+      raceClassCanonical: 'stakes',
+    });
+    // misses class, surface, and distance (0 of 3).
+    const farMiss = race({
+      key: 'far',
+      raceClass: 'STAKES',
+      raceClassCanonical: 'stakes',
+      surface: 'Turf',
+      surfaceCanonical: 'turf',
+      distanceFurlongs: 12,
+      distance: '1 1/2 Miles',
+    });
+
+    const weak = selectClosestRaces(followed, [strong, farMiss, closeMiss], 5);
+    expect(weak.map((s) => s.race.key)).toEqual(['close', 'far']);
+    expect(weak.every((s) => s.strength === 'weak')).toBe(true);
+    expect(weak[0]!.missReasons.length).toBeGreaterThan(0);
+  });
+
+  it('caps the number of weak matches returned', () => {
+    const races = Array.from({ length: 8 }, (_, i) =>
+      race({
+        key: `r${i}`,
+        postTimestamp: i,
+        raceClass: 'STAKES',
+        raceClassCanonical: 'stakes',
+      }),
+    );
+    expect(selectClosestRaces(followed, races, 5)).toHaveLength(5);
   });
 });

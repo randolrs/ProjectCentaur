@@ -80,7 +80,9 @@ const race: RaceRow = {
   updatedAt: now,
 };
 
-const scored: ScoredRace[] = [{ race, matchReasons: ['Runs on dirt'] }];
+const scored: ScoredRace[] = [
+  { race, matchReasons: ['Runs on dirt'], missReasons: [], strength: 'strong' },
+];
 
 const validJson = JSON.stringify({
   intro: 'A short sprint card built for your style today.',
@@ -118,7 +120,7 @@ describe('generateDigest', () => {
   it('returns the parsed digest and computed cost on a valid reply', async () => {
     createMock.mockResolvedValueOnce(fakeResponse(validJson));
 
-    const result = await generateDigest({ profile, prefs, scored, raceDate: '2026-05-17' });
+    const result = await generateDigest({ profile, prefs, scored, raceDate: '2026-05-17', tier: 'strong' });
 
     expect(result.output.races[0]?.race_key).toBe('us|2026-05-17|Aqueduct|3');
     // 2000 input @ $3/M + 400 output @ $15/M = $0.012
@@ -131,7 +133,7 @@ describe('generateDigest', () => {
       .mockResolvedValueOnce(fakeResponse('not json'))
       .mockResolvedValueOnce(fakeResponse(validJson));
 
-    const result = await generateDigest({ profile, prefs, scored, raceDate: '2026-05-17' });
+    const result = await generateDigest({ profile, prefs, scored, raceDate: '2026-05-17', tier: 'strong' });
 
     expect(result.output.intro).toContain('sprint card');
     expect(createMock).toHaveBeenCalledTimes(2);
@@ -141,7 +143,7 @@ describe('generateDigest', () => {
     createMock.mockResolvedValue(fakeResponse('still not json'));
 
     await expect(
-      generateDigest({ profile, prefs, scored, raceDate: '2026-05-17' }),
+      generateDigest({ profile, prefs, scored, raceDate: '2026-05-17', tier: 'strong' }),
     ).rejects.toBeInstanceOf(DigestLlmError);
   });
 
@@ -149,7 +151,7 @@ describe('generateDigest', () => {
     createMock.mockRejectedValue(new Error('network down'));
 
     await expect(
-      generateDigest({ profile, prefs, scored, raceDate: '2026-05-17' }),
+      generateDigest({ profile, prefs, scored, raceDate: '2026-05-17', tier: 'strong' }),
     ).rejects.toBeInstanceOf(DigestLlmError);
   });
 
@@ -174,6 +176,7 @@ describe('generateDigest', () => {
       prefs,
       scored,
       raceDate: '2026-05-17',
+      tier: 'strong',
     });
 
     expect(result.output.races[0]?.reasoning.length).toBeLessThanOrEqual(1500);

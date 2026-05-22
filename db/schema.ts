@@ -475,7 +475,7 @@ export const digests = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     raceDate: date('race_date', { mode: 'string' }).notNull(),
-    // 'sent' | 'skipped_no_races' | 'failed'.
+    // 'sent' | 'dark' (no-card note) | 'skipped_no_races' (legacy) | 'failed'.
     status: text('status').notNull(),
     raceCount: integer('race_count').notNull().default(0),
     subject: text('subject'),
