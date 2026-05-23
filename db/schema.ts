@@ -376,6 +376,9 @@ export const races = pgTable(
     postTimestamp: bigint('post_timestamp', { mode: 'number' }),
     surface: text('surface'),
     surfaceCanonical: text('surface_canonical').notNull(),
+    // Official going (Fast / Sloppy / Firm / Off Turf …), which the provider
+    // only fills on race day — null until a race-day refresh captures it.
+    surfaceCondition: text('surface_condition'),
     distance: text('distance'),
     distanceFurlongs: doublePrecision('distance_furlongs'),
     raceClass: text('race_class'),
@@ -544,6 +547,45 @@ export const subscriptions = pgTable(
   ],
 );
 
+// ---------------------------------------------------------------------------
+// condition_alerts — one row per (meet, surface, off-going) transition the
+// race-day poller detects, e.g. a track turning Sloppy or a turf race coming
+// Off Turf. The unique key dedupes repeated detections across polls;
+// `notified_at` records when subscribed followers were emailed (null = the
+// alert is pending dispatch). Server-only operational state.
+// ---------------------------------------------------------------------------
+
+export const conditionAlerts = pgTable(
+  'condition_alerts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    meetId: uuid('meet_id')
+      .notNull()
+      .references(() => meets.id, { onDelete: 'cascade' }),
+    // Canonical track name, denormalized so dispatch can match user prefs
+    // without a join back through meets -> tracks.
+    trackCanonical: text('track_canonical').notNull(),
+    raceDate: date('race_date', { mode: 'string' }).notNull(),
+    // 'dirt' | 'turf' — a track can flip both surfaces independently.
+    surfaceKind: text('surface_kind').notNull(),
+    // The off-going value detected, e.g. 'Sloppy', 'Off Turf', 'Yielding'.
+    condition: text('condition').notNull(),
+    detectedAt: timestamp('detected_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    notifiedAt: timestamp('notified_at', { withTimezone: true }),
+  },
+  (table) => [
+    unique('condition_alerts_meet_surface_condition').on(
+      table.meetId,
+      table.surfaceKind,
+      table.condition,
+    ),
+    index('condition_alerts_pending_idx').on(table.notifiedAt),
+    referenceSelectAll('condition_alerts_select_all'),
+  ],
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type UserPreferencesRow = typeof userPreferences.$inferSelect;
 export type EmailSignupRow = typeof emailSignups.$inferSelect;
@@ -566,5 +608,7 @@ export type RaceRow = typeof races.$inferSelect;
 export type SubscriptionRow = typeof subscriptions.$inferSelect;
 export type NewSubscriptionRow = typeof subscriptions.$inferInsert;
 export type NewRaceRow = typeof races.$inferInsert;
+export type ConditionAlertRow = typeof conditionAlerts.$inferSelect;
+export type NewConditionAlertRow = typeof conditionAlerts.$inferInsert;
 export type DigestRow = typeof digests.$inferSelect;
 export type NewDigestRow = typeof digests.$inferInsert;

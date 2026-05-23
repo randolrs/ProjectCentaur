@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import {
   getMeetRaceIndexForDate,
+  getMeetsAwaitingConditionRefresh,
   getTracksMissingCoordinates,
   recordRaceResults,
   setTrackCoordinates,
@@ -32,7 +33,7 @@ import {
   parseDistanceFurlongs,
 } from './canonical';
 import { usRegionStrategy, usToday } from './regions';
-import type { NaResultRace, Person, Racecard, Runner } from './types';
+import type { NaMeet, NaResultRace, Person, Racecard, Runner } from './types';
 import { TRACK_COORDINATES } from '@/lib/weather/coordinates';
 import { geocodeTrack } from '@/lib/weather/geocode';
 
@@ -116,6 +117,7 @@ export function racecardToRaceRow(
     postTimestamp: card.postTimestamp,
     surface: card.surface,
     surfaceCanonical: canonicalSurface(card.surface),
+    surfaceCondition: card.trackCondition,
     distance: card.distance,
     distanceFurlongs: parseDistanceFurlongs(card.distance),
     raceClass: card.raceClass,
@@ -143,6 +145,7 @@ const RACE_CONFLICT_UPDATE = {
   postTimestamp: sql`excluded.post_timestamp`,
   surface: sql`excluded.surface`,
   surfaceCanonical: sql`excluded.surface_canonical`,
+  surfaceCondition: sql`excluded.surface_condition`,
   distance: sql`excluded.distance`,
   distanceFurlongs: sql`excluded.distance_furlongs`,
   raceClass: sql`excluded.race_class`,
@@ -449,6 +452,87 @@ export async function ingestTodaysUsRaces(
   client?: RacingApiClient,
 ): Promise<IngestResult> {
   return ingestUsRacesForDate(usToday(), client);
+}
+
+// ---------------------------------------------------------------------------
+// Race-day condition refresh
+//
+// The provider only fills `track_condition` on race day, so the 09:00 ingest
+// always records it null. This refresh re-fetches just the meets with a race
+// about to post whose going is still unknown or normal, captures the going,
+// and returns the fresh cards so the caller can raise off-going alerts. It is
+// deliberately scoped — not a full re-ingest — so polling on a tight cadence
+// costs only a handful of provider calls per active track per day.
+// ---------------------------------------------------------------------------
+
+/** Fetch and normalize a single meet's card, synthesizing its meet header. */
+async function fetchMeetCards(
+  api: RacingApiClient,
+  providerMeetId: string,
+  date: string,
+): Promise<Racecard[]> {
+  const entries = await api.getNorthAmericaEntries(providerMeetId);
+  const meet: NaMeet = {
+    meet_id: providerMeetId,
+    track_id: entries.track_id ?? null,
+    track_name: entries.track_name ?? '',
+    country: entries.country ?? null,
+    date: entries.date ?? date,
+  };
+  return usRegionStrategy.raceNormalization({ date, meets: [{ meet, entries }] });
+}
+
+export interface ConditionRefreshResult {
+  /** Epoch-ms post-time window that selected the meets to refresh. */
+  window: { fromMs: number; toMs: number };
+  meetsRefreshed: number;
+  racesUpdated: number;
+  /** The freshly fetched cards, for off-going detection by the caller. */
+  cards: Racecard[];
+}
+
+/**
+ * Re-fetch going for meets with a race posting soon. `windowMinutes` looks
+ * ahead from now; a small look-back catches a going posted right at the gate.
+ * Returns early with no provider calls when nothing is due — so a 15-minute
+ * cron is a free no-op outside racing hours.
+ */
+export async function refreshRaceDayConditions(
+  opts: { windowMinutes?: number; client?: RacingApiClient; now?: Date } = {},
+): Promise<ConditionRefreshResult> {
+  const now = opts.now ?? new Date();
+  const windowMinutes = opts.windowMinutes ?? 30;
+  const fromMs = now.getTime() - 10 * 60_000;
+  const toMs = now.getTime() + windowMinutes * 60_000;
+
+  const providerMeetIds = await getMeetsAwaitingConditionRefresh(fromMs, toMs);
+  if (providerMeetIds.length === 0) {
+    return { window: { fromMs, toMs }, meetsRefreshed: 0, racesUpdated: 0, cards: [] };
+  }
+
+  const api = opts.client ?? RacingApiClient.fromEnv();
+  const date = usToday(now);
+  const cards: Racecard[] = [];
+  for (const providerMeetId of providerMeetIds) {
+    try {
+      cards.push(...(await fetchMeetCards(api, providerMeetId, date)));
+    } catch (error) {
+      if (error instanceof RacingApiError && error.status === 404) continue;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[refresh] meet ${providerMeetId} failed: ${message}`);
+    }
+  }
+
+  const result = cards.length > 0 ? await ingestRacecards(cards, date) : null;
+  console.log(
+    `[refresh] meets=${providerMeetIds.length} racesUpdated=${result?.races ?? 0}`,
+  );
+  return {
+    window: { fromMs, toMs },
+    meetsRefreshed: providerMeetIds.length,
+    racesUpdated: result?.races ?? 0,
+    cards,
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -211,6 +211,12 @@ export interface Racecard {
   conditions: string | null;
   /** Surface (e.g. "Dirt", "Turf"), as provided by the source. */
   surface: string | null;
+  /**
+   * Official going (e.g. "Fast", "Sloppy", "Off Turf"). The provider only
+   * populates this on race day, so it is null in the morning ingest and is
+   * filled by the race-day refresh.
+   */
+  trackCondition: string | null;
   /** Distance description (e.g. "6 1/2 Furlongs"), as provided by the source. */
   distance: string | null;
   /** Class / race type, as provided by the source. */

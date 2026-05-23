@@ -92,6 +92,13 @@
       "when": 1779337409542,
       "tag": "0012_race_entry_results",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1779564276035,
+      "tag": "0013_condition_poller",
+      "breakpoints": true
     }
   ]
 }
