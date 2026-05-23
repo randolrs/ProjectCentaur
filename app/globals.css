@@ -21,3 +21,17 @@
     cursor: pointer;
   }
 }
+
+/* iOS Safari zooms into any focused field whose font-size is under 16px,
+   which lurches the viewport on focus (most visible on the login form). Hold
+   text-entry controls at 16px on small screens to suppress that zoom; wider
+   screens keep their Tailwind sizing. Left unlayered on purpose so it beats
+   the `text-sm` utility — layered styles lose to unlayered ones in the
+   cascade regardless of specificity. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
