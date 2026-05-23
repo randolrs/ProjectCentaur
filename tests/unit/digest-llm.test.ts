@@ -179,7 +179,7 @@ describe('generateDigest', () => {
       tier: 'strong',
     });
 
-    expect(result.output.races[0]?.reasoning.length).toBeLessThanOrEqual(1500);
+    expect(result.output.races[0]?.reasoning.length).toBeLessThanOrEqual(600);
     expect(createMock).toHaveBeenCalledTimes(1);
   });
 });

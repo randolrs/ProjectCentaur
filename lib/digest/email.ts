@@ -35,6 +35,30 @@ function displayDate(raceDate: string): string {
   }).format(parsed);
 }
 
+/**
+ * Split model prose into paragraphs on one-or-more newlines. The model is
+ * asked to separate a caveat from the lead read with a blank line; without a
+ * dedicated split, HTML collapses those breaks and the copy reads as one
+ * block. Falls back to the whole (trimmed) string so output is never empty.
+ */
+function paragraphs(value: string): string[] {
+  const parts = value
+    .split(/\n+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  return parts.length > 0 ? parts : [value.trim()];
+}
+
+/** Render multi-paragraph prose as stacked, inline-styled <p> blocks. */
+function proseHtml(value: string, css: string, firstMarginTop: string): string {
+  return paragraphs(value)
+    .map(
+      (part, i) =>
+        `<p style="${css}margin:${i === 0 ? firstMarginTop : '10px'} 0 0 0;">${escapeHtml(part)}</p>`,
+    )
+    .join('');
+}
+
 function metaLine(item: RenderedDigestItem): string {
   return [
     item.raceClass,
@@ -56,9 +80,7 @@ function itemHtml(item: RenderedDigestItem): string {
       <div style="font-size:13px;color:#888888;margin-top:4px;">
         ${escapeHtml(metaLine(item))}
       </div>
-      <div style="font-size:14px;line-height:1.6;color:#333333;margin-top:8px;">
-        ${escapeHtml(item.reasoning)}
-      </div>
+      ${proseHtml(item.reasoning, 'font-size:14px;line-height:1.6;color:#333333;', '8px')}
     </td></tr>`;
 }
 
@@ -66,7 +88,7 @@ function itemText(item: RenderedDigestItem): string {
   return [
     item.headline,
     metaLine(item),
-    item.reasoning,
+    paragraphs(item.reasoning).join('\n\n'),
   ].join('\n');
 }
 
@@ -158,9 +180,7 @@ export function renderDigestEmail(
             ${escapeHtml(displayDate(raceDate))}
           </div>
           <h1 style="font-size:22px;color:#111111;margin:8px 0 0 0;">${escapeHtml(heading)}</h1>
-          <p style="font-size:14px;line-height:1.6;color:#333333;margin:16px 0 0 0;">
-            ${escapeHtml(digest.intro)}
-          </p>
+          ${proseHtml(digest.intro, 'font-size:14px;line-height:1.6;color:#333333;', '16px')}
         </td></tr>
         ${weakNoteHtml}
         ${itemsHtml}
@@ -178,7 +198,7 @@ export function renderDigestEmail(
   const text = [
     `${heading.toUpperCase()} — ${displayDate(raceDate)}`,
     '',
-    digest.intro,
+    paragraphs(digest.intro).join('\n\n'),
     ...(digest.tier === 'weak'
       ? ['', 'No races strongly matched your criteria today — here are the closest looks at your tracks.']
       : []),

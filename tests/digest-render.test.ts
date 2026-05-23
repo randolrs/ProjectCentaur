@@ -168,6 +168,27 @@ describe('renderDigestEmail', () => {
     expect(email.html).not.toContain('<worth a look>');
   });
 
+  it('renders newline-separated prose as distinct paragraphs', () => {
+    const multi: RenderedDigest = {
+      ...digest,
+      intro: 'Lead read on the day.\n\nA second beat worth flagging.',
+      items: [
+        {
+          ...digest.items[0]!,
+          reasoning: 'The angle that should make you look.\n\nOne honest caveat to weigh.',
+        },
+      ],
+    };
+    const email = renderDigestEmail(multi, '2026-05-17');
+    // Each beat lands in its own <p>, not one collapsed block.
+    expect(email.html).toContain('>Lead read on the day.</p>');
+    expect(email.html).toContain('>A second beat worth flagging.</p>');
+    expect(email.html).toContain('>The angle that should make you look.</p>');
+    expect(email.html).toContain('>One honest caveat to weigh.</p>');
+    // Plain text keeps the blank line between beats.
+    expect(email.text).toContain('Lead read on the day.\n\nA second beat worth flagging.');
+  });
+
   it('flags a weak-match digest in the subject and body', () => {
     const email = renderDigestEmail({ ...digest, tier: 'weak' }, '2026-05-17');
     expect(email.subject).toContain('no strong matches');

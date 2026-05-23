@@ -18,13 +18,13 @@ const clampTo = (max: number) => (s: string) => s.slice(0, max);
 export const DigestRaceReasoningSchema = z.object({
   // Must echo a `race_key` supplied in the prompt.
   race_key: z.string().min(1),
-  headline: z.string().min(3).transform(clampTo(240)),
-  reasoning: z.string().min(15).transform(clampTo(1500)),
+  headline: z.string().min(3).transform(clampTo(160)),
+  reasoning: z.string().min(15).transform(clampTo(600)),
 });
 
 /** The full model response for a user's daily digest. */
 export const DigestLlmOutputSchema = z.object({
-  intro: z.string().min(10).transform(clampTo(1000)),
+  intro: z.string().min(10).transform(clampTo(400)),
   races: z.array(DigestRaceReasoningSchema).min(1).max(12),
 });
 export type DigestLlmOutput = z.infer<typeof DigestLlmOutputSchema>;

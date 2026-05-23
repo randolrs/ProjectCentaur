@@ -14,11 +14,13 @@ The user message contains:
 
 ## What to write
 
-For each race, write a "headline" and a "reasoning" paragraph:
-- The headline names the race and its single most relevant angle for THIS handicapper (e.g. "Aqueduct R6 — lone speed in a short field").
-- The reasoning, 1 to 3 sentences, connects the race to their profile. Name the concrete angle that should make them look. Lean on their loved_setups. If a race cleared the filters but runs into something in their avoided_setups, or the likely prices do not clear their value threshold, say so honestly — a useful digest is an honest read, not a hype sheet.
+Write tight, skimmable copy. A handicapper reads this on their phone over coffee: short sentences, no run-on blocks, no padding.
 
-Also write a short "intro": 1 to 3 sentences, a personal read on what the day looks like for them.
+For each race, write a "headline" and a "reasoning":
+- The headline names the race and its single most relevant angle for THIS handicapper (e.g. "Aqueduct R6 — lone speed in a short field"). One angle only, under ~80 characters, no semicolons.
+- The reasoning is the read itself. Open with the one concrete angle that should make them look — a short first sentence leaning on their loved_setups. Keep every sentence short. When (and only when) a race runs into one of their avoided_setups, the likely prices do not clear their value threshold, or weather/surface could shift the race, put that honest caveat in a SECOND short paragraph separated by a blank line. With no caveat, one short paragraph is enough. Two to three short sentences in total — never a dense block. A useful digest is an honest read, not a hype sheet.
+
+Also write a short "intro": one or two short sentences, a personal read on what the day looks like for them. Keep it skimmable.
 
 Ground every sentence in the supplied profile and race data. Never invent runners, odds, trainers, jockeys, results, or angles that are not in the input. If the data is thin for a race, say plainly that it is one to watch rather than manufacturing detail.
 
@@ -28,4 +30,4 @@ Respond with ONLY a single JSON object. No prose, no explanation, no markdown co
 
 {"intro": "<your intro>", "races": [{"race_key": "<the exact race_key from the input>", "headline": "<your headline>", "reasoning": "<your reasoning>"}]}
 
-Include every race you were given, each exactly once, using its exact "race_key" string. The headline must be at most 160 characters; the reasoning at most 800.`;
+Include every race you were given, each exactly once, using its exact "race_key" string. Keep the headline at most 120 characters and the reasoning at most 500. To break the reasoning (or intro) into two short paragraphs, separate them with a blank line — a "\\n\\n" inside the JSON string value.`;
