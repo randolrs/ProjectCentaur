@@ -1,6 +1,10 @@
 'use server';
 
-import { getDigestEligibleUsers, getIngestSummaryForDate } from '@/db/queries';
+import {
+  getCanonicalTracks,
+  getDigestEligibleUsers,
+  getIngestSummaryForDate,
+} from '@/db/queries';
 import { isAdminEmail } from '@/lib/admin';
 import {
   runDigestForAllUsers,
@@ -9,6 +13,7 @@ import {
 } from '@/lib/digest/pipeline';
 import { localParts } from '@/lib/digest/schedule';
 import { backfillHistory, ingestTodaysUsRaces } from '@/lib/racing/ingest';
+import { seedTracksFromMeets } from '@/lib/racing/seed-tracks';
 import { createClient } from '@/lib/supabase/server';
 import type {
   BackfillActionResult,
@@ -16,6 +21,7 @@ import type {
   EmailDigestActionResult,
   IngestActionResult,
   IngestDayActionResult,
+  SeedTracksActionResult,
 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -80,6 +86,33 @@ export async function triggerHistoryBackfill(
   }
   try {
     return { ok: true, data: await backfillHistory({ days, startDate }) };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/**
+ * Seed the track vocabulary from the meets feed (no entries fetch), so
+ * onboarding and digest matching see every track that has run — not just
+ * those in already-ingested days. Resumable: processes one budgeted chunk per
+ * call and returns a cursor; the caller re-invokes from `nextDate` until
+ * `done`. Reports the catalog's total US track count after each upsert.
+ */
+export async function triggerSeedTracks(
+  days: number,
+  startDate?: string,
+): Promise<SeedTracksActionResult> {
+  if (!(await isCallerAdmin())) return { ok: false, error: 'Not authorized.' };
+  if (!Number.isInteger(days) || days < 1 || days > 366) {
+    return { ok: false, error: 'Days must be between 1 and 366.' };
+  }
+  if (startDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+    return { ok: false, error: 'Start date must be YYYY-MM-DD.' };
+  }
+  try {
+    const data = await seedTracksFromMeets({ days, startDate });
+    const catalogTracks = (await getCanonicalTracks('us')).length;
+    return { ok: true, data: { ...data, catalogTracks } };
   } catch (error) {
     return fail(error);
   }
