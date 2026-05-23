@@ -75,26 +75,30 @@ function toStringOrNull(value: string | number | null | undefined): string | nul
 }
 
 /** NA add-on covers the US + Canada; keep only US meets for v1. */
-function isUsMeet(meet: NaMeet): boolean {
+export function isUsMeet(meet: NaMeet): boolean {
   const marker = (meet.country ?? '').toLowerCase();
   if (!marker) return true; // Keep unlabelled meets rather than silently drop.
   return /usa|united states|^us$/.test(marker);
 }
 
-// Multi-track wager pools (cross-track Pick 5/6 products) surface in the NA
-// meets feed as if they were tracks; their "races" duplicate real-track
-// cards. They are otherwise structurally identical to real meets, so this
-// is necessarily a name heuristic.
+// Multi-track wager pools (cross-track Pick N and Daily Double products)
+// surface in the NA meets feed as if they were tracks; their "races" duplicate
+// real-track cards. They are otherwise structurally identical to real meets,
+// so detection is necessarily a name heuristic: named products like "Sunset
+// Six", and the generic "<Event> Pick 5" / "<Event> Preakness Double" forms.
+// No US racetrack name contains a "pick N" or "double" token.
 const WAGER_POOL_MEETS: ReadonlySet<string> = new Set([
   'sunset six',
   'coast to coast pick 5',
   'cross country pick 5',
 ]);
 
+const WAGER_POOL_PATTERN = /\b(pick\s*\d|double)\b/;
+
 /** True when a meet name is a wagering pool rather than a real racetrack. */
-function isWagerPoolMeet(name: string): boolean {
+export function isWagerPoolMeet(name: string): boolean {
   const normalized = name.trim().toLowerCase();
-  return WAGER_POOL_MEETS.has(normalized) || /\bpick\s*\d/.test(normalized);
+  return WAGER_POOL_MEETS.has(normalized) || WAGER_POOL_PATTERN.test(normalized);
 }
 
 /** Build a display name from a jockey / trainer person object. */

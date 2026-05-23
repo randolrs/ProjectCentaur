@@ -62,6 +62,19 @@ describe('US racecard normalization', () => {
     expect(usRegionStrategy.raceNormalization(poolRaw)).toHaveLength(0);
   });
 
+  it('drops daily-double wager pools that masquerade as tracks', () => {
+    const poolRaw: RawUsRacecardData = {
+      date: '2026-05-17',
+      meets: [
+        {
+          meet: meets.meets![0]!,
+          entries: { ...aqueduct, track_name: 'BES Preakness Double' },
+        },
+      ],
+    };
+    expect(usRegionStrategy.raceNormalization(poolRaw)).toHaveLength(0);
+  });
+
   it('reads the nested race number and provider display fields', () => {
     const race1 = cards[0]!;
     expect(race1.region).toBe('us');
