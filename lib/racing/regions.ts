@@ -180,6 +180,7 @@ function normalizeRace(meet: MeetContext, race: NaRace): Racecard {
     postTimestamp: toNumber(race.post_time_long),
     conditions: buildConditions(race),
     surface: toStringOrNull(race.surface_description),
+    trackCondition: toStringOrNull(race.track_condition),
     distance: toStringOrNull(race.distance_description),
     raceClass:
       toStringOrNull(race.race_class) ??

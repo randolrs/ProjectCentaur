@@ -1,19 +1,23 @@
 import {
   and,
   asc,
+  between,
   count,
   desc,
   eq,
   inArray,
   isNull,
+  or,
   sql,
   type SQL,
 } from 'drizzle-orm';
 import { getDb } from './index';
 import type {
+  ConditionAlertRow,
   HandicapperProfileRow,
   HorseRow,
   JockeyRow,
+  NewConditionAlertRow,
   RaceEntryRow,
   RaceRow,
   SubscriptionRow,
@@ -22,6 +26,7 @@ import type {
   UserRow,
 } from './schema';
 import {
+  conditionAlerts,
   digests,
   handicapperProfile,
   horses,
@@ -448,4 +453,89 @@ export async function getTrainerWithEntries(
     trainer,
     appearances: await loadAppearances(eq(raceEntries.trainerId, trainerId)),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Race-day condition poller — capture going closer to post, and dedupe the
+// off-going alerts it raises.
+// ---------------------------------------------------------------------------
+
+/**
+ * Provider meet ids worth re-fetching for going: a US meet with a race posting
+ * inside the window whose condition is still unknown or normal (Fast/Firm).
+ * Once a meet is recorded off we stop polling it — re-alerting is deduped
+ * anyway — which bounds the call volume to active, not-yet-off tracks.
+ */
+export async function getMeetsAwaitingConditionRefresh(
+  fromMs: number,
+  toMs: number,
+): Promise<string[]> {
+  const db = getDb();
+  const rows = await db
+    .selectDistinct({ providerMeetId: meets.providerMeetId })
+    .from(races)
+    .innerJoin(meets, eq(meets.id, races.meetId))
+    .where(
+      and(
+        eq(races.region, 'us'),
+        between(races.postTimestamp, fromMs, toMs),
+        or(
+          isNull(races.surfaceCondition),
+          sql`lower(${races.surfaceCondition}) in ('fast', 'firm', 'standard')`,
+        ),
+      ),
+    );
+  return rows.map((row) => row.providerMeetId);
+}
+
+/** Resolve provider meet ids to their internal meet ids. */
+export async function getMeetIdsByProvider(
+  providerMeetIds: string[],
+): Promise<Map<string, string>> {
+  if (providerMeetIds.length === 0) return new Map();
+  const db = getDb();
+  const rows = await db
+    .select({ id: meets.id, providerMeetId: meets.providerMeetId })
+    .from(meets)
+    .where(inArray(meets.providerMeetId, providerMeetIds));
+  return new Map(rows.map((row) => [row.providerMeetId, row.id]));
+}
+
+/**
+ * Record detected off-going transitions, returning only the rows that were
+ * newly inserted — the unique (meet, surface, condition) key drops repeats
+ * across polls, so the result is exactly the alerts still to send.
+ */
+export async function insertConditionAlerts(
+  rows: NewConditionAlertRow[],
+): Promise<ConditionAlertRow[]> {
+  if (rows.length === 0) return [];
+  return getDb()
+    .insert(conditionAlerts)
+    .values(rows)
+    .onConflictDoNothing({
+      target: [
+        conditionAlerts.meetId,
+        conditionAlerts.surfaceKind,
+        conditionAlerts.condition,
+      ],
+    })
+    .returning();
+}
+
+/** Going alerts detected but not yet emailed. */
+export async function getPendingConditionAlerts(): Promise<ConditionAlertRow[]> {
+  return getDb()
+    .select()
+    .from(conditionAlerts)
+    .where(isNull(conditionAlerts.notifiedAt));
+}
+
+/** Mark going alerts as dispatched so they are not emailed twice. */
+export async function markConditionAlertsNotified(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await getDb()
+    .update(conditionAlerts)
+    .set({ notifiedAt: new Date() })
+    .where(inArray(conditionAlerts.id, ids));
 }

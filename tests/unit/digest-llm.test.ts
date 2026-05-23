@@ -66,6 +66,7 @@ const race: RaceRow = {
   postTimestamp: 1_000,
   surface: 'Dirt',
   surfaceCanonical: 'dirt',
+  surfaceCondition: null,
   distance: '6 Furlongs',
   distanceFurlongs: 6,
   raceClass: 'CLAIMING',
