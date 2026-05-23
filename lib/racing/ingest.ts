@@ -601,8 +601,12 @@ export async function backfillHistory(opts: {
   const startDate =
     opts.startDate ?? usToday(new Date(Date.now() - 24 * 60 * 60 * 1000));
   // Leave generous headroom under the 300s function ceiling: the budget is
-  // only checked between days, and a single heavy day can run tens of seconds.
-  const budgetMs = opts.budgetMs ?? 200_000;
+  // only checked between days, and a single heavy day (entries + results for
+  // every meet) can run well over a minute. A chunk that breaks late must
+  // still finish its current day before the platform kills the function, so
+  // keep the budget well below the ceiling — the caller resumes from the
+  // returned cursor, so a smaller budget only means more (cheap) round-trips.
+  const budgetMs = opts.budgetMs ?? 120_000;
   const api = opts.client ?? RacingApiClient.fromEnv();
   const began = Date.now();
 
