@@ -46,6 +46,13 @@ export interface SeedTracksResult {
  * Seed the `tracks` table from `days` racing days ending at `startDate`
  * (default: today), newest first. Stops when `budgetMs` of wall-clock is spent
  * and returns a resume cursor (`nextDate`), mirroring `backfillHistory`.
+ *
+ * The default budget is deliberately well under any Vercel function ceiling
+ * (Hobby caps at 60s regardless of a route's `maxDuration`), so a chunk always
+ * returns a cursor before the platform can hard-kill the function — otherwise
+ * the caller's resume loop restarts from the same day and never advances. Each
+ * day is a single cheap meets-list call, so a 45s chunk still covers ~100 days;
+ * the resume loop transparently stitches chunks together.
  */
 export async function seedTracksFromMeets(
   opts: {
@@ -57,7 +64,7 @@ export async function seedTracksFromMeets(
 ): Promise<SeedTracksResult> {
   const days = opts.days ?? 365;
   const startDate = opts.startDate ?? usToday();
-  const budgetMs = opts.budgetMs ?? 240_000;
+  const budgetMs = opts.budgetMs ?? 45_000;
   const api = opts.client ?? RacingApiClient.fromEnv();
   const began = Date.now();
 
