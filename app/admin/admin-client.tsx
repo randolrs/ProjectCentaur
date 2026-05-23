@@ -9,6 +9,7 @@ import {
   triggerDigestForEmail,
   triggerHistoryBackfill,
   triggerIngest,
+  triggerSeedTracks,
 } from './actions';
 import type {
   DigestActionResult,
@@ -24,6 +25,13 @@ interface BackfillProgress {
   entriesPlaced: number;
   errors: number;
   lastDate: string | null;
+  done: boolean;
+}
+
+interface SeedProgress {
+  daysScanned: number;
+  meetsSeen: number;
+  catalogTracks: number;
   done: boolean;
 }
 
@@ -115,6 +123,9 @@ export function AdminConsole({ email }: { email: string }) {
   const [backfillDays, setBackfillDays] = useState(60);
   const [backfillError, setBackfillError] = useState<string | null>(null);
   const [backfill, setBackfill] = useState<BackfillProgress | null>(null);
+  const [seedDays, setSeedDays] = useState(365);
+  const [seedError, setSeedError] = useState<string | null>(null);
+  const [seed, setSeed] = useState<SeedProgress | null>(null);
 
   async function runIngest() {
     setBusy('ingest');
@@ -162,6 +173,48 @@ export function AdminConsole({ email }: { email: string }) {
       totals.lastDate = d.processed.at(-1) ?? totals.lastDate;
       totals.done = d.done;
       setBackfill({ ...totals });
+      if (d.done || !d.nextDate) break;
+      cursor = d.nextDate;
+      remaining = d.remainingDays;
+    }
+    setBusy(null);
+  }
+
+  // Drive the resumable track seed chunk by chunk until the whole window is
+  // covered. `catalogTracks` reflects the live total after each upsert, so the
+  // displayed count is the true distinct catalog size — not a sum of chunks.
+  async function runSeedTracks() {
+    setBusy('seed');
+    setSeedError(null);
+    const totals: SeedProgress = {
+      daysScanned: 0,
+      meetsSeen: 0,
+      catalogTracks: 0,
+      done: false,
+    };
+    setSeed({ ...totals });
+    let remaining = seedDays;
+    let cursor: string | undefined;
+    for (let chunk = 0; remaining > 0 && chunk < 366; chunk += 1) {
+      let res: Awaited<ReturnType<typeof triggerSeedTracks>>;
+      try {
+        res = await triggerSeedTracks(remaining, cursor);
+      } catch {
+        setSeedError(
+          'A seed chunk failed (likely a timeout). Re-run to resume — it picks up where it left off.',
+        );
+        break;
+      }
+      if (!res.ok) {
+        setSeedError(res.error);
+        break;
+      }
+      const d = res.data;
+      totals.daysScanned += d.daysScanned;
+      totals.meetsSeen += d.meetsSeen;
+      totals.catalogTracks = d.catalogTracks;
+      totals.done = d.done;
+      setSeed({ ...totals });
       if (d.done || !d.nextDate) break;
       cursor = d.nextDate;
       remaining = d.remainingDays;
@@ -296,6 +349,56 @@ export function AdminConsole({ email }: { email: string }) {
             </div>
           )}
           {backfillError && <p className="text-sm text-red-400">{backfillError}</p>}
+        </section>
+
+        <section className="space-y-3">
+          <div className="space-y-1">
+            <h2 className="text-sm font-semibold">Seed track catalog</h2>
+            <p className="text-sm text-neutral-400">
+              Scan the meets feed (no entries fetch) over the chosen window and
+              upsert every distinct track into the{' '}
+              <code className="text-neutral-300">tracks</code> table — the
+              vocabulary onboarding and digest matching read from. Wager pools
+              are filtered out. Runs in budgeted chunks and resumes
+              automatically. Safe to re-run; idempotent on the track name.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              max={366}
+              value={seedDays}
+              onChange={(event) => setSeedDays(Number(event.target.value) || 0)}
+              disabled={locked}
+              className="w-20 rounded-md border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm disabled:opacity-50"
+            />
+            <span className="text-sm text-neutral-500">days back</span>
+            <Button
+              onClick={runSeedTracks}
+              disabled={locked}
+              busy={busy === 'seed'}
+            >
+              Seed tracks
+            </Button>
+          </div>
+          {seed && (
+            <div className="space-y-2">
+              <p
+                className={
+                  seed.done ? 'text-sm text-emerald-400' : 'text-sm text-neutral-300'
+                }
+              >
+                {seed.done ? 'Seed complete.' : 'Seeding…'} {seed.daysScanned} day
+                {seed.daysScanned === 1 ? '' : 's'} scanned.
+              </p>
+              <dl className="grid grid-cols-2 gap-2">
+                <Stat label="Meets seen" value={seed.meetsSeen} />
+                <Stat label="Tracks in catalog" value={seed.catalogTracks} />
+              </dl>
+            </div>
+          )}
+          {seedError && <p className="text-sm text-red-400">{seedError}</p>}
         </section>
 
         <section className="space-y-3">
