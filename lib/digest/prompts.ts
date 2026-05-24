@@ -73,6 +73,19 @@ function pickAmount(raw: unknown, key: string): number | null {
   return null;
 }
 
+/** Read a trimmed, non-empty string from a raw provider field. */
+function pickString(raw: unknown, key: string): string | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const value = (raw as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+/** Display a stakes grade: a bare "1" becomes "Grade 1"; "Listed"/"G1" pass through. */
+function formatGrade(grade: string | null): string | null {
+  if (!grade) return null;
+  return /^\d+$/.test(grade) ? `Grade ${grade}` : grade;
+}
+
 /** Format a US dollar amount compactly — $5,000 → $5K, $7,500 → $7.5K. */
 function dollarsCompact(amount: number): string {
   if (amount >= 1000 && amount % 1000 === 0) return `$${amount / 1000}K`;
@@ -92,7 +105,7 @@ function claimRangeText(min: number | null, max: number | null): string | null {
   return `claim ${dollarsCompact(single)}`;
 }
 
-function raceSection(scored: ScoredRace): string {
+export function raceSection(scored: ScoredRace): string {
   const { race } = scored;
   const number = race.raceNumber === null ? '' : ` Race ${race.raceNumber}`;
   const post = race.postTime ? ` · post ${race.postTime}` : '';
@@ -110,12 +123,26 @@ function raceSection(scored: ScoredRace): string {
   const surface = race.surface ?? 'Surface n/a';
   const going = race.surfaceCondition ? ` (${race.surfaceCondition})` : '';
 
+  // Stakes grade qualifies the class; named races (chiefly stakes) carry a
+  // title the model should use. Both sit unused in raw_data otherwise.
+  const grade = formatGrade(pickString(race.rawData, 'grade'));
+  const classLabel = race.raceClass ?? 'Class n/a';
+  const classText = grade ? `${classLabel} (${grade})` : classLabel;
+  const raceName = pickString(race.rawData, 'race_name');
+
+  const scratched = race.runners.filter((r) => r.scratched).length;
+  const fieldText =
+    scratched > 0
+      ? `field of ${race.fieldSize} (${scratched} scratched)`
+      : `field of ${race.fieldSize}`;
+
   return [
     `[race_key: ${race.key}]`,
     `${race.track}${number}${post}`,
-    `  ${race.raceClass ?? 'Class n/a'} · ${surface}${going} · ` +
-      `${race.distance ?? 'Distance n/a'} · field of ${race.fieldSize}` +
+    `  ${classText} · ${surface}${going} · ` +
+      `${race.distance ?? 'Distance n/a'} · ${fieldText}` +
       `${purseText}${claimText}`,
+    raceName ? `  Race: ${raceName}` : null,
     race.conditions ? `  Conditions: ${race.conditions}` : null,
     scored.weather ? `  Weather: ${formatForecast(scored.weather)}` : null,
     scored.strength === 'strong'
