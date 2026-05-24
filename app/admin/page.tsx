@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { getAllUsers } from '@/db/queries';
 import { isAdminEmail } from '@/lib/admin';
 import { createClient } from '@/lib/supabase/server';
 import { AdminConsole } from './admin-client';
@@ -6,6 +7,9 @@ import { AdminConsole } from './admin-client';
 // Ingestion makes many sequential provider calls; give server actions
 // triggered from this page a generous execution window.
 export const maxDuration = 300;
+
+// Always reflect the live roster, not a cached snapshot.
+export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -15,5 +19,6 @@ export default async function AdminPage() {
   if (!user) redirect('/login');
   if (!isAdminEmail(user.email)) redirect('/dashboard');
 
-  return <AdminConsole email={user.email ?? ''} />;
+  const users = await getAllUsers();
+  return <AdminConsole email={user.email ?? ''} users={users} />;
 }

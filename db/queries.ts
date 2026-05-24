@@ -329,6 +329,36 @@ export async function getSentDigestCountByUser(): Promise<Map<string, number>> {
   return new Map(rows.map((row) => [row.userId, Number(row.sent)]));
 }
 
+export interface AdminUserListRow {
+  id: string;
+  email: string;
+  onboardingStatus: string;
+  timezone: string | null;
+  regions: string[];
+  createdAt: Date;
+  /** Stripe subscription status, or null if they never started checkout. */
+  subscriptionStatus: string | null;
+}
+
+/** Every account, newest first, with subscription status — admin roster. */
+export async function getAllUsers(): Promise<AdminUserListRow[]> {
+  const db = getDb();
+  return db
+    .select({
+      id: users.id,
+      email: users.email,
+      onboardingStatus: users.onboardingStatus,
+      timezone: users.timezone,
+      regions: users.regions,
+      createdAt: users.createdAt,
+      subscriptionStatus: subscriptions.status,
+    })
+    .from(users)
+    .leftJoin(subscriptions, eq(subscriptions.userId, users.id))
+    .orderBy(desc(users.createdAt));
+}
+
+
 // ---------------------------------------------------------------------------
 // Admin data explorer — read-only drill-down across the normalized racing
 // tables: races -> race_entries -> horses / jockeys / trainers, and back.
