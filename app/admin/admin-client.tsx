@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import type { AdminUserListRow } from '@/db/queries';
 import type { DigestOutcome, DigestRunSummary } from '@/lib/digest/pipeline';
 import {
   getIngestedDay,
+  triggerConditionPoll,
   triggerDigest,
   triggerDigestForEmail,
   triggerHistoryBackfill,
@@ -12,6 +14,7 @@ import {
   triggerSeedTracks,
 } from './actions';
 import type {
+  ConditionPollActionResult,
   DigestActionResult,
   EmailDigestActionResult,
   IngestActionResult,
@@ -38,6 +41,30 @@ interface SeedProgress {
 /** Today's date as YYYY-MM-DD for the date picker default. */
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+const ONBOARDING_LABEL: Record<string, string> = {
+  incomplete: 'incomplete',
+  structured_complete: 'structured',
+  conversation_complete: 'complete',
+};
+
+/** Active subscriptions read green; lapsed read amber; no subscription dim. */
+function subscriptionStyle(status: string | null): string {
+  if (status === 'active' || status === 'past_due') return 'text-emerald-400';
+  if (!status) return 'text-neutral-500';
+  return 'text-amber-400';
+}
+
+function formatDate(value: Date | string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? '—'
+    : date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
 }
 
 const OUTCOME_STYLE: Record<DigestOutcome, string> = {
@@ -111,9 +138,16 @@ function Button({
   );
 }
 
-export function AdminConsole({ email }: { email: string }) {
+export function AdminConsole({
+  email,
+  users,
+}: {
+  email: string;
+  users: AdminUserListRow[];
+}) {
   const [busy, setBusy] = useState<string | null>(null);
   const [ingest, setIngest] = useState<IngestActionResult | null>(null);
+  const [tick, setTick] = useState<ConditionPollActionResult | null>(null);
   const [digest, setDigest] = useState<DigestActionResult | null>(null);
   const [day, setDay] = useState(todayIso());
   const [dayResult, setDayResult] = useState<IngestDayActionResult | null>(null);
@@ -130,6 +164,12 @@ export function AdminConsole({ email }: { email: string }) {
   async function runIngest() {
     setBusy('ingest');
     setIngest(await triggerIngest());
+    setBusy(null);
+  }
+
+  async function runTick() {
+    setBusy('tick');
+    setTick(await triggerConditionPoll());
     setBusy(null);
   }
 
@@ -294,6 +334,36 @@ export function AdminConsole({ email }: { email: string }) {
               </div>
             ) : (
               <p className="text-sm text-red-400">{ingest.error}</p>
+            ))}
+        </section>
+
+        <section className="space-y-3">
+          <div className="space-y-1">
+            <h2 className="text-sm font-semibold">Condition poll</h2>
+            <p className="text-sm text-neutral-400">
+              Run one race-day tick now — the same work the{' '}
+              <code className="text-neutral-300">*/15</code> cron does: refresh
+              going for meets about to post, capture it into{' '}
+              <code className="text-neutral-300">surface_condition</code>, and
+              email subscribed followers when a track turns off (Sloppy, Off
+              Turf…). A no-op outside racing hours.
+            </p>
+          </div>
+          <Button onClick={runTick} disabled={locked} busy={busy === 'tick'}>
+            Run tick now
+          </Button>
+          {tick &&
+            (tick.ok ? (
+              <dl className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                <Stat label="Meets" value={tick.data.meetsRefreshed} />
+                <Stat label="Races" value={tick.data.racesUpdated} />
+                <Stat label="Off going" value={tick.data.offGoingDetected} />
+                <Stat label="New alerts" value={tick.data.newAlerts} />
+                <Stat label="Dispatched" value={tick.data.alertsDispatched} />
+                <Stat label="Emails" value={tick.data.emailsSent} />
+              </dl>
+            ) : (
+              <p className="text-sm text-red-400">{tick.error}</p>
             ))}
         </section>
 
@@ -544,6 +614,51 @@ export function AdminConsole({ email }: { email: string }) {
             ) : (
               <p className="text-sm text-red-400">{emailResult.error}</p>
             ))}
+        </section>
+
+        <section className="space-y-3">
+          <div className="space-y-1">
+            <h2 className="text-sm font-semibold">Users ({users.length})</h2>
+            <p className="text-sm text-neutral-400">
+              Every account, newest first, with onboarding and subscription
+              status.
+            </p>
+          </div>
+          {users.length === 0 ? (
+            <p className="text-sm text-neutral-500">No users yet.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-md border border-neutral-800">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs uppercase tracking-wide text-neutral-500">
+                  <tr className="border-b border-neutral-800">
+                    <th className="px-3 py-2 font-medium">Email</th>
+                    <th className="px-3 py-2 font-medium">Onboarding</th>
+                    <th className="px-3 py-2 font-medium">Subscription</th>
+                    <th className="px-3 py-2 font-medium">Joined</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-800">
+                  {users.map((u) => (
+                    <tr key={u.id}>
+                      <td className="px-3 py-2 text-neutral-100">{u.email}</td>
+                      <td className="px-3 py-2 text-neutral-400">
+                        {ONBOARDING_LABEL[u.onboardingStatus] ??
+                          u.onboardingStatus}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={subscriptionStyle(u.subscriptionStatus)}>
+                          {u.subscriptionStatus ?? 'none'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 tabular-nums text-neutral-500">
+                        {formatDate(u.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       </div>
     </main>

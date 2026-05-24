@@ -6,6 +6,7 @@ import {
   getIngestSummaryForDate,
 } from '@/db/queries';
 import { isAdminEmail } from '@/lib/admin';
+import { runConditionPoll } from '@/lib/alerts/poller';
 import {
   runDigestForAllUsers,
   runDigestForUser,
@@ -17,6 +18,7 @@ import { seedTracksFromMeets } from '@/lib/racing/seed-tracks';
 import { createClient } from '@/lib/supabase/server';
 import type {
   BackfillActionResult,
+  ConditionPollActionResult,
   DigestActionResult,
   EmailDigestActionResult,
   IngestActionResult,
@@ -49,6 +51,20 @@ export async function triggerIngest(): Promise<IngestActionResult> {
   if (!(await isCallerAdmin())) return { ok: false, error: 'Not authorized.' };
   try {
     return { ok: true, data: await ingestTodaysUsRaces() };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/**
+ * Run one race-day condition poll now — the same work the 15-minute cron
+ * does: refresh going for imminent meets, record off-going transitions, and
+ * email subscribed followers. Outside racing hours it's a no-op.
+ */
+export async function triggerConditionPoll(): Promise<ConditionPollActionResult> {
+  if (!(await isCallerAdmin())) return { ok: false, error: 'Not authorized.' };
+  try {
+    return { ok: true, data: await runConditionPoll() };
   } catch (error) {
     return fail(error);
   }
