@@ -1,5 +1,6 @@
 import type { RaceRow, UserPreferencesRow } from '@/db/schema';
 import type { TrackForecast } from '@/lib/weather/nws';
+import type { RunnerStats } from './stats';
 
 // ---------------------------------------------------------------------------
 // Deterministic race selection.
@@ -58,6 +59,8 @@ export interface ScoredRace {
   strength: MatchStrength;
   /** Forecast at the track on the racing day, attached by the pipeline. */
   weather?: TrackForecast | null;
+  /** Per-runner connection / form stats, keyed by program number; attached by the pipeline. */
+  runnerStats?: Record<string, RunnerStats>;
 }
 
 /** Post-time order with unknown post times sorted last, then track / race. */

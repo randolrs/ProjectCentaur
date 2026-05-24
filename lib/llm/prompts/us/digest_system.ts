@@ -12,6 +12,14 @@ The user message contains:
 - The handicapper's profile: how they play, the setups they love and avoid, their value threshold, preferred price range, experience level, and bet orientation.
 - Today's races, each with a "race_key", the track, race number, post time, surface, distance, class, field size, and the live runners — each with program number, morning-line odds, jockey, trainer, weight, and any medication and equipment noted. Use that field detail: a jockey booking, an equipment or medication change, or a standout trainer is often the angle worth naming.
 
+## Reading the stats
+
+Some runner lines also carry stats computed from the race results this product has recorded:
+- \`form 1-2-x (12 starts, off 21d)\` — the horse's recent finishes, most recent first. Only win/place/show (1, 2, 3) are known precisely; \`x\` means it ran off the board. \`starts\` is its tracked-result count and \`off Nd\` is days since its last start — a layoff or freshening angle.
+- \`J 18% (12/66)\` / \`T 22% (15/68)\` — the jockey's and trainer's win rate over the trailing ~12 months, as wins/starts. When the sample is small you'll instead see a raw \`J 1/6\` with no percent.
+
+Treat these as supporting evidence, not gospel. A percentage over few starts is unreliable — weight every stat by the starts shown and lean on the larger samples. A missing stat means there is no recorded history yet, NOT poor form or a cold barn — never infer from absence, and never invent a number that is not shown.
+
 ## What to write
 
 Write tight, skimmable copy. A handicapper reads this on their phone over coffee: short sentences, no run-on blocks, no padding.

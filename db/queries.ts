@@ -5,13 +5,17 @@ import {
   count,
   desc,
   eq,
+  gte,
   inArray,
+  isNotNull,
   isNull,
+  lt,
   or,
   sql,
   type SQL,
 } from 'drizzle-orm';
 import { getDb } from './index';
+import type { ConnectionRecord, HorseFinish } from '@/lib/digest/stats';
 import type {
   ConditionAlertRow,
   HandicapperProfileRow,
@@ -163,6 +167,106 @@ export async function getRacesForTracks(
       ),
     )
     .orderBy(asc(races.postTimestamp), asc(races.track), asc(races.raceNumber));
+}
+
+/**
+ * Trainer / jockey resulted records over a date window, keyed by natural key
+ * (the same key ingestion stores, so the digest can look one up straight from
+ * a runner). Only non-scratched entries in resulted races inside
+ * `[fromDate, toDate)` count — today's not-yet-run races are excluded by the
+ * exclusive upper bound, so a connection never counts a race that hasn't run.
+ */
+export async function getConnectionStats(
+  jockeyKeys: string[],
+  trainerKeys: string[],
+  fromDate: string,
+  toDate: string,
+  region = 'us',
+): Promise<{
+  jockeys: Map<string, ConnectionRecord>;
+  trainers: Map<string, ConnectionRecord>;
+}> {
+  const db = getDb();
+  const starts = sql<number>`count(*)::int`;
+  const wins = sql<number>`(count(*) filter (where ${raceEntries.finishPosition} = 1))::int`;
+  const resulted = (dateCol: typeof races.raceDate) =>
+    and(
+      eq(races.region, region),
+      eq(raceEntries.scratched, false),
+      isNotNull(raceEntries.resultRecordedAt),
+      gte(dateCol, fromDate),
+      lt(dateCol, toDate),
+    );
+
+  const jockeyRecords = new Map<string, ConnectionRecord>();
+  if (jockeyKeys.length > 0) {
+    const rows = await db
+      .select({ key: jockeys.naturalKey, starts, wins })
+      .from(raceEntries)
+      .innerJoin(races, eq(races.id, raceEntries.raceId))
+      .innerJoin(jockeys, eq(jockeys.id, raceEntries.jockeyId))
+      .where(and(inArray(jockeys.naturalKey, jockeyKeys), resulted(races.raceDate)))
+      .groupBy(jockeys.naturalKey);
+    for (const r of rows) {
+      jockeyRecords.set(r.key, { starts: Number(r.starts), wins: Number(r.wins) });
+    }
+  }
+
+  const trainerRecords = new Map<string, ConnectionRecord>();
+  if (trainerKeys.length > 0) {
+    const rows = await db
+      .select({ key: trainers.naturalKey, starts, wins })
+      .from(raceEntries)
+      .innerJoin(races, eq(races.id, raceEntries.raceId))
+      .innerJoin(trainers, eq(trainers.id, raceEntries.trainerId))
+      .where(and(inArray(trainers.naturalKey, trainerKeys), resulted(races.raceDate)))
+      .groupBy(trainers.naturalKey);
+    for (const r of rows) {
+      trainerRecords.set(r.key, { starts: Number(r.starts), wins: Number(r.wins) });
+    }
+  }
+
+  return { jockeys: jockeyRecords, trainers: trainerRecords };
+}
+
+/**
+ * Resulted finishes for a set of horses (by natural key), most recent first,
+ * limited to races before `toDate`. The caller assembles each horse's form
+ * line from these (see `buildHorseForm`).
+ */
+export async function getHorseFormStats(
+  horseKeys: string[],
+  toDate: string,
+  region = 'us',
+): Promise<Map<string, HorseFinish[]>> {
+  const result = new Map<string, HorseFinish[]>();
+  if (horseKeys.length === 0) return result;
+  const db = getDb();
+  const rows = await db
+    .select({
+      key: horses.naturalKey,
+      raceDate: races.raceDate,
+      finishPosition: raceEntries.finishPosition,
+    })
+    .from(raceEntries)
+    .innerJoin(races, eq(races.id, raceEntries.raceId))
+    .innerJoin(horses, eq(horses.id, raceEntries.horseId))
+    .where(
+      and(
+        inArray(horses.naturalKey, horseKeys),
+        eq(races.region, region),
+        eq(raceEntries.scratched, false),
+        isNotNull(raceEntries.resultRecordedAt),
+        lt(races.raceDate, toDate),
+      ),
+    )
+    .orderBy(desc(races.raceDate));
+  for (const r of rows) {
+    const list = result.get(r.key);
+    if (list) list.push({ raceDate: r.raceDate, finishPosition: r.finishPosition });
+    else result.set(r.key, [{ raceDate: r.raceDate, finishPosition: r.finishPosition }]);
+  }
+  return result;
 }
 
 /**

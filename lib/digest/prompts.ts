@@ -4,6 +4,7 @@ import type { Runner } from '@/lib/racing/types';
 import { formatForecast } from '@/lib/weather/nws';
 import type { DigestTier } from './schema';
 import type { ScoredRace } from './select';
+import { type RunnerStats, runnerStatSegments } from './stats';
 
 // Region-agnostic accessors for the digest prompts. v1 is US-only.
 
@@ -38,10 +39,11 @@ function profileSection(
 /**
  * One runner line for the digest prompt: program number, horse, ML odds,
  * and the field detail a handicapper reads — jockey, trainer, post
- * position, weight, and any medication / equipment. Absent fields are
- * omitted cleanly.
+ * position, weight, and any medication / equipment, plus the runner's
+ * recent-form and connection win-rate stats when available. Absent fields
+ * are omitted cleanly.
  */
-export function runnerLine(runner: Runner): string {
+export function runnerLine(runner: Runner, stats?: RunnerStats): string {
   const number = runner.programNumber ? `${runner.programNumber}. ` : '';
   const name = runner.horseName ?? 'Unknown';
   const odds = runner.morningLineOdds ? ` (ML ${runner.morningLineOdds})` : '';
@@ -55,7 +57,7 @@ export function runnerLine(runner: Runner): string {
     runner.medication,
     runner.equipment,
   ].filter((part): part is string => Boolean(part));
-  const detail = [connections.join(' / '), ...extras]
+  const detail = [connections.join(' / '), ...extras, ...runnerStatSegments(stats)]
     .filter((part) => part.length > 0)
     .join(' · ');
   return `    ${number}${name}${odds}${detail ? ` — ${detail}` : ''}`;
@@ -127,7 +129,14 @@ function raceSection(scored: ScoredRace): string {
       ? `  Does NOT match your criteria: ${scored.missReasons.join('; ')}.`
       : null,
     live.length > 0 ? '  Runners:' : '  Runners: none listed',
-    ...live.map(runnerLine),
+    ...live.map((runner) =>
+      runnerLine(
+        runner,
+        runner.programNumber
+          ? scored.runnerStats?.[runner.programNumber]
+          : undefined,
+      ),
+    ),
   ]
     .filter((line): line is string => line !== null)
     .join('\n');

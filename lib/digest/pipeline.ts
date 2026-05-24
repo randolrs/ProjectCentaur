@@ -1,7 +1,9 @@
 import {
   type DigestEligibleUser,
+  getConnectionStats,
   getDigestEligibleUser,
   getDigestEligibleUsers,
+  getHorseFormStats,
   getRacesForTracks,
   getSentDigestCountByUser,
   getTrackCoordinates,
@@ -20,9 +22,11 @@ import {
 import { trackEvent } from '@/lib/analytics';
 import { sendEmail } from '@/lib/email/resend';
 import { getSiteUrl } from '@/lib/env';
+import { horseNaturalKey, personNaturalKey } from '@/lib/racing/ingest';
 import { isSubscriptionActive } from '@/lib/stripe/subscription';
 import { TRACK_COORDINATES } from '@/lib/weather/coordinates';
 import { getCachedForecast } from '@/lib/weather/nws';
+import { buildHorseForm, type RunnerStats, windowStartDate } from './stats';
 
 // ---------------------------------------------------------------------------
 // Digest pipeline orchestration.
@@ -116,6 +120,65 @@ async function attachWeather(
     ...entry,
     weather: forecasts.get(entry.race.track) ?? null,
   }));
+}
+
+/**
+ * Attach each runner's connection win-rate and recent-form stats, computed
+ * from the results this product has recorded. Runners are matched to the
+ * stat records by the same natural keys ingestion stores. Best-effort: the
+ * stats are an enhancement, so a failure degrades to no stats rather than
+ * failing the digest.
+ */
+async function attachStats(
+  scored: readonly ScoredRace[],
+  raceDate: string,
+): Promise<ScoredRace[]> {
+  try {
+    const jockeyKeys = new Set<string>();
+    const trainerKeys = new Set<string>();
+    const horseKeys = new Set<string>();
+    for (const { race } of scored) {
+      for (const runner of race.runners) {
+        if (runner.scratched) continue;
+        if (runner.horseName) horseKeys.add(horseNaturalKey(runner));
+        if (runner.jockey) jockeyKeys.add(personNaturalKey(runner.jockey));
+        if (runner.trainer) trainerKeys.add(personNaturalKey(runner.trainer));
+      }
+    }
+
+    const [connections, horseFinishes] = await Promise.all([
+      getConnectionStats(
+        [...jockeyKeys],
+        [...trainerKeys],
+        windowStartDate(raceDate),
+        raceDate,
+      ),
+      getHorseFormStats([...horseKeys], raceDate),
+    ]);
+
+    return scored.map((entry) => {
+      const runnerStats: Record<string, RunnerStats> = {};
+      for (const runner of entry.race.runners) {
+        if (runner.scratched || !runner.programNumber) continue;
+        runnerStats[runner.programNumber] = {
+          jockey: runner.jockey
+            ? (connections.jockeys.get(personNaturalKey(runner.jockey)) ?? null)
+            : null,
+          trainer: runner.trainer
+            ? (connections.trainers.get(personNaturalKey(runner.trainer)) ?? null)
+            : null,
+          horse: runner.horseName
+            ? buildHorseForm(horseFinishes.get(horseNaturalKey(runner)) ?? [], raceDate)
+            : null,
+        };
+      }
+      return { ...entry, runnerStats };
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[cron/digest] stats attach failed: ${message}`);
+    return [...scored];
+  }
 }
 
 /**
@@ -214,7 +277,10 @@ export async function runDigestForUser(
     tier === 'strong'
       ? strong.slice(0, MAX_RACES_PER_DIGEST)
       : selectClosestRaces(prefs, races, MAX_WEAK_MATCH_RACES);
-  const scored = await attachWeather(baseScored, raceDate);
+  const scored = await attachStats(
+    await attachWeather(baseScored, raceDate),
+    raceDate,
+  );
 
   // Generate the digest; on model failure fall back to deterministic copy so
   // the user still receives a usable digest.
