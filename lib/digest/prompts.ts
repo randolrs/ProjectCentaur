@@ -107,10 +107,13 @@ function raceSection(scored: ScoredRace): string {
     : '';
   const claimText = claim ? ` · ${claim}` : '';
 
+  const surface = race.surface ?? 'Surface n/a';
+  const going = race.surfaceCondition ? ` (${race.surfaceCondition})` : '';
+
   return [
     `[race_key: ${race.key}]`,
     `${race.track}${number}${post}`,
-    `  ${race.raceClass ?? 'Class n/a'} · ${race.surface ?? 'Surface n/a'} · ` +
+    `  ${race.raceClass ?? 'Class n/a'} · ${surface}${going} · ` +
       `${race.distance ?? 'Distance n/a'} · field of ${race.fieldSize}` +
       `${purseText}${claimText}`,
     race.conditions ? `  Conditions: ${race.conditions}` : null,

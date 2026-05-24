@@ -59,10 +59,18 @@ function proseHtml(value: string, css: string, firstMarginTop: string): string {
     .join('');
 }
 
+/** Surface with its going folded in when captured, e.g. "Dirt (Sloppy)". */
+function surfaceLabel(item: RenderedDigestItem): string | null {
+  if (!item.surface) return item.surfaceCondition ?? null;
+  return item.surfaceCondition
+    ? `${item.surface} (${item.surfaceCondition})`
+    : item.surface;
+}
+
 function metaLine(item: RenderedDigestItem): string {
   return [
     item.raceClass,
-    item.surface,
+    surfaceLabel(item),
     item.distance,
     `field of ${item.fieldSize}`,
     item.postTime ? `post ${item.postTime}` : null,

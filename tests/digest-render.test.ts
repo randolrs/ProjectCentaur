@@ -92,6 +92,13 @@ describe('buildRenderedDigest', () => {
     expect(digest.items[0]!.track).toBe('Aqueduct');
   });
 
+  it('carries the captured going onto each rendered item', () => {
+    const sloppy = scoredRace('us|2026-05-17|Aqueduct|3', 'Aqueduct');
+    sloppy.race.surfaceCondition = 'Sloppy';
+    const digest = buildRenderedDigest(null, [sloppy], 'strong');
+    expect(digest.items[0]!.surfaceCondition).toBe('Sloppy');
+  });
+
   it('fills races the model omitted with deterministic copy', () => {
     const digest = buildRenderedDigest(
       {
@@ -161,6 +168,22 @@ describe('renderDigestEmail', () => {
     expect(email.subject).toContain('1 race');
     expect(email.html).toContain('Aqueduct R3 — lone speed');
     expect(email.text).toContain('A lively card across two tracks.');
+  });
+
+  it('shows the going folded into the surface when captured', () => {
+    const offTrack: RenderedDigest = {
+      ...digest,
+      items: [{ ...digest.items[0]!, surface: 'Dirt', surfaceCondition: 'Sloppy' }],
+    };
+    const email = renderDigestEmail(offTrack, '2026-05-17');
+    expect(email.html).toContain('Dirt (Sloppy)');
+    expect(email.text).toContain('Dirt (Sloppy)');
+  });
+
+  it('omits the going parenthetical when none was captured', () => {
+    const email = renderDigestEmail(digest, '2026-05-17');
+    expect(email.html).toContain('Dirt');
+    expect(email.html).not.toContain('Dirt (');
   });
 
   it('escapes HTML in model-written content', () => {
