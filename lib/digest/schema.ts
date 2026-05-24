@@ -36,6 +36,12 @@ export interface RenderedDigestItem {
   raceNumber: number | null;
   postTime: string | null;
   surface: string | null;
+  /**
+   * Official going (e.g. "Sloppy", "Off Turf") when captured by race day —
+   * optional because the morning ingest leaves it null and older persisted
+   * digests predate the field.
+   */
+  surfaceCondition?: string | null;
   distance: string | null;
   raceClass: string | null;
   fieldSize: number;
